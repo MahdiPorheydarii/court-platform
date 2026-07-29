@@ -13,11 +13,14 @@ One deployed app serves *every* club (multi-tenant). Each club is walled off fro
 the others — a member of "Riverside" can never see "Hillcrest" data — and gets its
 own page at `acepair.ir/<club>` (and, optionally, its own subdomain).
 
+![AcePair — the platform landing page](docs/screenshots/landing.jpg)
+
 ---
 
 ## Table of contents
 
 - [What it does](#what-it-does)
+- [Screenshots](#screenshots)
 - [Requirements coverage](#requirements-coverage)
 - [How it's built](#how-its-built)
 - [Run it locally](#run-it-locally)
@@ -45,6 +48,22 @@ through configuration, with no code changes per club.
 The product is designed to *feel alive*: bookings confirm instantly, matches fill
 in real time, and notifications arrive over a live connection rather than a page
 refresh.
+
+---
+
+## Screenshots
+
+**The apex is a multi-club directory — each club opens its own page/subdomain**
+
+![Clubs on AcePair](docs/screenshots/clubs.jpg)
+
+**Members find and join open games — auto-matched by skill & time, fee split**
+
+![Discover open matches](docs/screenshots/discover.jpg)
+
+**Admins manage courts, opening hours, the week's schedule, and recurring holds**
+
+![Admin schedule](docs/screenshots/admin-schedule.jpg)
 
 ---
 

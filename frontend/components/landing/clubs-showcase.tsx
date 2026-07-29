@@ -1,15 +1,21 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
 import { ArrowUpRight, LayoutGrid, MapPin, Zap } from 'lucide-react'
 import { api, type PublicClubCard } from '@/lib/api'
 import { API_ENABLED } from '@/lib/config'
+import { ROOT_DOMAIN } from '@/lib/club-host'
 
 // A club with no cover set still gets a fitting court photo.
 function coverFor(club: PublicClubCard): string {
   if (club.cover_image) return club.cover_image
   return club.sports.includes('padel') ? '/images/court-padel.jpg' : '/images/court-clay.jpg'
+}
+
+// A club's canonical home is its subdomain (riverside.acepair.ir). The path
+// route (/riverside) still works as an alias.
+function clubUrl(slug: string): string {
+  return `https://${slug}.${ROOT_DOMAIN}`
 }
 
 export function ClubsShowcase() {
@@ -52,8 +58,8 @@ export function ClubsShowcase() {
 
 function ClubCard({ club }: { club: PublicClubCard }) {
   return (
-    <Link
-      href={`/${club.slug}`}
+    <a
+      href={clubUrl(club.slug)}
       className="group flex flex-col overflow-hidden rounded-2xl border border-border bg-card transition-shadow hover:shadow-lg hover:shadow-primary/5"
     >
       <div className="relative aspect-[16/10] overflow-hidden bg-muted">
@@ -102,7 +108,7 @@ function ClubCard({ club }: { club: PublicClubCard }) {
           </span>
         </div>
       </div>
-    </Link>
+    </a>
   )
 }
 
