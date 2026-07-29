@@ -1,7 +1,7 @@
 """Club profile & configuration (admin-managed, data-driven)."""
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
@@ -11,10 +11,65 @@ from sqlalchemy.orm.attributes import flag_modified
 from ..deps import AuthContext, get_auth_context, get_club_by_slug, get_db, require_admin
 from ..domain.config import ClubConfig, merge_config
 from ..errors import NotFoundError
-from ..models import Court, Match, MatchStatus
+from ..models import Club, Court, Match, MatchStatus
 from ..schemas import ClubConfigUpdate, ClubOut
 
 router = APIRouter(prefix="/v1", tags=["clubs"])
+
+
+@router.get(
+    "/public/clubs",
+    tags=["public"],
+    summary="Public club directory for the landing showcase (no auth)",
+)
+async def public_clubs(session: AsyncSession = Depends(get_db)) -> List[Dict[str, Any]]:
+    """Clubs that opted into the public showcase (``config.showcase == true``).
+
+    Test/tenant clubs without the flag are never listed. Court and open-match
+    counts come from two grouped queries, so this stays a handful of round-trips
+    regardless of how many clubs exist.
+    """
+    clubs = (await session.execute(select(Club))).scalars().all()
+    showcased = [c for c in clubs if (c.config or {}).get("showcase")]
+    if not showcased:
+        return []
+    ids = [c.id for c in showcased]
+
+    court_rows = (
+        await session.execute(
+            select(Court.club_id, func.count())
+            .where(Court.club_id.in_(ids), Court.is_active.is_(True))
+            .group_by(Court.club_id)
+        )
+    ).all()
+    courts_by = {cid: n for cid, n in court_rows}
+    match_rows = (
+        await session.execute(
+            select(Match.club_id, func.count())
+            .where(Match.club_id.in_(ids), Match.status == MatchStatus.OPEN)
+            .group_by(Match.club_id)
+        )
+    ).all()
+    matches_by = {cid: n for cid, n in match_rows}
+
+    out: List[Dict[str, Any]] = []
+    for c in showcased:
+        cfg = c.config or {}
+        out.append(
+            {
+                "name": c.name,
+                "slug": c.slug,
+                "sports": ClubConfig(cfg).sports,
+                "location": cfg.get("location"),
+                "tagline": cfg.get("tagline"),
+                "cover_image": cfg.get("cover_image"),
+                "courts": courts_by.get(c.id, 0),
+                "open_matches": matches_by.get(c.id, 0),
+            }
+        )
+    # Liveliest clubs first, then alphabetical.
+    out.sort(key=lambda x: (-x["open_matches"], x["name"]))
+    return out
 
 
 @router.get(

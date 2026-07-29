@@ -36,11 +36,30 @@ export default function LoginPage() {
   const [clubName, setClubName] = useState('')
   const [adminName, setAdminName] = useState('')
 
-  // Prefill the club handle from the ?club= param (arriving from a club page)
-  // or from a club subdomain (riverside.acepair.ir).
+  // A club context — arriving from a club page (?club=) or a club subdomain
+  // (riverside.acepair.ir) — makes this a member sign-in scoped to that club:
+  // the club is fixed and "Start a club" (a platform-level action) is hidden.
+  const [clubCtx, setClubCtx] = useState<string | null>(null)
+  const [ctxClubName, setCtxClubName] = useState('')
+  const clubScoped = clubCtx !== null
+
   useEffect(() => {
-    const club = new URLSearchParams(window.location.search).get('club') || clubSlugFromHost()
-    if (club) setSlug(club)
+    const params = new URLSearchParams(window.location.search)
+    const club = params.get('club') || clubSlugFromHost()
+    if (club) {
+      setClubCtx(club)
+      setSlug(club)
+      setMode('signin')
+      // Resolve the club's display name for a friendly heading (best-effort).
+      if (API_ENABLED) {
+        api.publicClub(club).then((c) => setCtxClubName(c.name)).catch(() => {})
+      }
+      return
+    }
+    // Platform login: "Start your club" links here with ?register=1.
+    if (params.get('register') !== null || params.get('mode') === 'register') {
+      setMode('register')
+    }
   }, [])
 
   async function signIn(creds: { slug: string; email: string; password: string }) {
@@ -100,19 +119,26 @@ export default function LoginPage() {
         <Logo />
         <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center py-10">
           <p className="text-sm font-medium uppercase tracking-wide text-primary">
-            {mode === 'signin' ? 'Welcome back' : 'Start your club'}
+            {clubScoped ? 'Members club' : mode === 'signin' ? 'Welcome back' : 'Start your club'}
           </p>
           <h1 className="mt-2 font-serif text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-            {mode === 'signin' ? 'Get on court' : 'Onboard your club'}
+            {clubScoped
+              ? `Sign in to ${ctxClubName || 'your club'}`
+              : mode === 'signin'
+                ? 'Get on court'
+                : 'Onboard your club'}
           </h1>
           <p className="mt-2 text-pretty leading-relaxed text-muted-foreground">
-            {mode === 'signin'
-              ? 'Sign in to find matches, book courts, and split the fee.'
-              : 'Set up courts, pricing, and matchmaking in minutes.'}
+            {clubScoped
+              ? 'Find matches, book courts, and split the fee with your club.'
+              : mode === 'signin'
+                ? 'Sign in to find matches, book courts, and split the fee.'
+                : 'Set up courts, pricing, and matchmaking in minutes.'}
           </p>
 
-          {/* Demo account — sign in normally with a sample login */}
-          {mode === 'signin' && DEMO_ENABLED ? (
+          {/* Demo account — shown on the platform login and the demo club's own
+              sign-in, but not on some other club's scoped login. */}
+          {mode === 'signin' && DEMO_ENABLED && (!clubScoped || clubCtx === DEMO.slug) ? (
             <div className="mt-6 rounded-2xl border border-primary/25 bg-primary/[0.06] p-4">
               <div className="flex items-center gap-2 text-sm font-semibold text-primary">
                 <Sparkles className="size-4" /> Try the demo account
@@ -136,27 +162,30 @@ export default function LoginPage() {
             </div>
           ) : null}
 
-          {/* Mode toggle */}
-          <div className="mt-6 flex rounded-full border border-border bg-muted/50 p-1 text-sm font-medium">
-            {(['signin', 'register'] as Mode[]).map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => {
-                  setMode(m)
-                  setError(null)
-                }}
-                className={cn(
-                  'flex-1 rounded-full px-4 py-2 transition-colors',
-                  mode === m
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground',
-                )}
-              >
-                {m === 'signin' ? 'Sign in' : 'Start a club'}
-              </button>
-            ))}
-          </div>
+          {/* Mode toggle — only on the platform login. In a club context it's a
+              member sign-in, so "Start a club" (a platform action) is hidden. */}
+          {clubScoped ? null : (
+            <div className="mt-6 flex rounded-full border border-border bg-muted/50 p-1 text-sm font-medium">
+              {(['signin', 'register'] as Mode[]).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => {
+                    setMode(m)
+                    setError(null)
+                  }}
+                  className={cn(
+                    'flex-1 rounded-full px-4 py-2 transition-colors',
+                    mode === m
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {m === 'signin' ? 'Sign in' : 'Start a club'}
+                </button>
+              ))}
+            </div>
+          )}
 
           <form onSubmit={onSubmit} className="mt-6 flex flex-col gap-4">
             {mode === 'register' ? (
@@ -170,9 +199,13 @@ export default function LoginPage() {
               </>
             ) : null}
 
-            <Field label="Club address" hint="Your club's short handle">
-              <Input value={slug} onChange={(v) => setSlug(v.toLowerCase())} placeholder="riverside" required />
-            </Field>
+            {/* Club handle: an explicit field on the platform login; fixed (and
+                hidden) when the club is already known from the URL. */}
+            {clubScoped ? null : (
+              <Field label="Club address" hint="Your club's short handle">
+                <Input value={slug} onChange={(v) => setSlug(v.toLowerCase())} placeholder="riverside" required />
+              </Field>
+            )}
             <Field label="Email">
               <Input type="email" value={email} onChange={setEmail} placeholder="you@club.com" required />
             </Field>
@@ -195,8 +228,8 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center text-xs text-muted-foreground">
-          <Link href="/" className="hover:text-foreground">
-            ← Back to home
+          <Link href={clubScoped ? `/${clubCtx}` : '/'} className="hover:text-foreground">
+            {clubScoped ? `← Back to ${ctxClubName || 'club'}` : '← Back to home'}
           </Link>
         </p>
       </div>

@@ -154,6 +154,16 @@ export interface TokenResponse {
   member: ApiMember
   club: ApiClub
 }
+export interface PublicClubCard {
+  name: string
+  slug: string
+  sports: string[]
+  location: string | null
+  tagline: string | null
+  cover_image: string | null
+  courts: number
+  open_matches: number
+}
 
 // --- Auth ---
 export const api = {
@@ -184,6 +194,7 @@ export const api = {
       `/v1/public/clubs/${slug}`,
       { auth: false },
     ),
+  publicClubs: () => request<PublicClubCard[]>('/v1/public/clubs', { auth: false }),
   me: (token?: string) =>
     request<{ member: ApiMember; club: ApiClub }>('/v1/auth/me', { token }),
   updateMe: (payload: { name?: string; skill_level?: string }) =>

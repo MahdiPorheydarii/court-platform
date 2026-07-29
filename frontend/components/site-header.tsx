@@ -9,14 +9,14 @@ export function SiteHeader() {
         <Logo />
 
         <nav className="hidden items-center gap-8 text-sm text-muted-foreground md:flex">
-          <Link href="/discover" className="transition-colors hover:text-foreground">
-            Find a match
+          <Link href="#clubs" className="transition-colors hover:text-foreground">
+            Clubs
           </Link>
-          <Link href="/discover" className="transition-colors hover:text-foreground">
-            Book a court
+          <Link href="#how" className="transition-colors hover:text-foreground">
+            How it works
           </Link>
-          <Link href="/" className="transition-colors hover:text-foreground">
-            Membership
+          <Link href="/login?register=1" className="transition-colors hover:text-foreground">
+            For clubs
           </Link>
         </nav>
 
@@ -29,7 +29,7 @@ export function SiteHeader() {
             <Link href="/login">Log in</Link>
           </Button>
           <Button asChild className="rounded-full px-5">
-            <Link href="/discover">Enter the club</Link>
+            <Link href="/login?register=1">Start your club</Link>
           </Button>
         </div>
       </div>
