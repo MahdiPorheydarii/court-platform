@@ -132,6 +132,10 @@ class Court(Base):
     surface: Mapped[str] = mapped_column(String(60), default="Hard")
     indoor: Mapped[bool] = mapped_column(Boolean, default=False)
     image_url: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    # Optional per-court hourly rate override (cents). Falls back to the club's
+    # per-sport base rate when null — so pricing is per-sport by default but a
+    # premium (indoor / panoramic) court can charge more.
+    hourly_rate_cents: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 

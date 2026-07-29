@@ -77,8 +77,9 @@ async def availability(
                     s < slot_end and e > cursor for (s, e) in taken.get(court.id, [])
                 )
                 peak = fee_logic.is_peak(cursor, cfg.peak_windows)
+                base_rate = court.hourly_rate_cents or sport_fee.base_rate_per_hour_cents
                 price_cents = fee_logic.compute_total_fee_cents(
-                    sport_fee.base_rate_per_hour_cents, duration, sport_fee.peak_multiplier, peak
+                    base_rate, duration, sport_fee.peak_multiplier, peak
                 )
                 slots.append(
                     AvailabilitySlot(

@@ -129,6 +129,8 @@ class CourtCreate(BaseModel):
     surface: str = Field(default="Hard")
     indoor: bool = False
     image_url: Optional[str] = None
+    # Optional per-court hourly rate override (cents). Null = use the sport rate.
+    hourly_rate_cents: Optional[int] = Field(default=None, ge=0, le=1_000_00)
 
 
 class CourtUpdate(BaseModel):
@@ -138,6 +140,7 @@ class CourtUpdate(BaseModel):
     indoor: Optional[bool] = None
     image_url: Optional[str] = None
     is_active: Optional[bool] = None
+    hourly_rate_cents: Optional[int] = Field(default=None, ge=0, le=1_000_00)
 
 
 class CourtOut(BaseModel):
@@ -149,6 +152,7 @@ class CourtOut(BaseModel):
     surface: str
     indoor: bool
     image_url: Optional[str]
+    hourly_rate_cents: Optional[int] = None
     is_active: bool
 
 

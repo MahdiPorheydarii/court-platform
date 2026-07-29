@@ -16,8 +16,10 @@ import { Logo } from '@/components/logo'
 import { Button } from '@/components/ui/button'
 import { AvatarStack } from '@/components/avatar-stack'
 import { MatchFillRing } from '@/components/match-fill-ring'
+import { ConfirmBurst } from '@/components/confirm-burst'
 import { api, ApiError, type ApiMatch } from '@/lib/api'
 import { API_ENABLED } from '@/lib/config'
+import { useMatchLive } from '@/lib/realtime'
 import { useSession } from '@/lib/session'
 import { dayLabel, timeLabel } from '@/lib/format'
 import { levelTone, type Player } from '@/lib/club-data'
@@ -133,15 +135,17 @@ function Poster({
   authed: boolean
 }) {
   const hero = match.sport === 'padel' ? '/images/court-padel.jpg' : '/images/court-clay.jpg'
-  const filled = match.spots_filled
   const total = match.spots_total
+  const live = useMatchLive(match.id, match.spots_filled, total)
+  const filled = Math.max(match.spots_filled, live.filled)
   const spotsLeft = Math.max(0, total - filled)
-  const confirmed = match.status === 'confirmed'
+  const confirmed = match.status === 'confirmed' || live.status === 'confirmed'
   const isLast = spotsLeft === 1
   const players = match.players as unknown as Player[]
 
   return (
-    <div className="overflow-hidden rounded-3xl border border-border bg-card shadow-xl shadow-primary/5">
+    <div className="relative overflow-hidden rounded-3xl border border-border bg-card shadow-xl shadow-primary/5">
+      {live.justConfirmed ? <ConfirmBurst subtitle="Court booked · you're on!" /> : null}
       {/* Hero */}
       <div className="relative">
         <img src={hero} alt="" loading="eager" className="aspect-[16/10] w-full bg-muted object-cover" />

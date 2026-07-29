@@ -6,6 +6,7 @@ import { Check, Clock, MapPin, Loader2, Share2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AvatarStack } from '@/components/avatar-stack'
 import { MatchFillRing } from '@/components/match-fill-ring'
+import { ConfirmBurst } from '@/components/confirm-burst'
 import { api, ApiError } from '@/lib/api'
 import { API_ENABLED } from '@/lib/config'
 import { useMatchLive } from '@/lib/realtime'
@@ -170,18 +171,7 @@ export function MatchCard({ match }: { match: OpenMatch }) {
       ) : null}
 
       {/* Celebratory reveal when the match locks in */}
-      {justConfirmed ? (
-        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 rounded-2xl bg-card/95 text-center backdrop-blur-sm animate-in fade-in zoom-in-95">
-          <div className="relative flex size-14 items-center justify-center">
-            <span className="absolute inset-0 rounded-full bg-accent/25 animate-ping" />
-            <span className="relative flex size-14 items-center justify-center rounded-full bg-accent text-accent-foreground">
-              <Check className="size-7" strokeWidth={2.6} />
-            </span>
-          </div>
-          <p className="font-serif text-lg font-semibold">Match locked in!</p>
-          <p className="text-xs text-muted-foreground">Court booked · fee split evenly</p>
-        </div>
-      ) : null}
+      {justConfirmed ? <ConfirmBurst /> : null}
     </article>
   )
 }

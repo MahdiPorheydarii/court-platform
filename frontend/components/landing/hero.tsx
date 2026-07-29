@@ -11,7 +11,7 @@ export function Hero() {
         <div className="flex flex-col gap-7">
           <span className="inline-flex w-fit items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground">
             <span className="size-1.5 rounded-full bg-accent" />
-            Tennis &amp; padel · 12 clubs near you
+            The members club for tennis &amp; padel
           </span>
 
           <h1 className="font-serif text-5xl leading-[1.02] font-semibold tracking-tight text-balance sm:text-6xl lg:text-7xl">

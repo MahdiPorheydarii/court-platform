@@ -153,6 +153,8 @@ function StatRow() {
 //  Courts                                                                      //
 // --------------------------------------------------------------------------- //
 const SURFACES = ['Glass', 'Panoramic', 'Clay', 'Hard', 'Grass', 'Carpet']
+// Index 0=Mon … 6=Sun, matching the backend's peak-window day numbering.
+const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 function CourtsPanel() {
   const [courts, setCourts] = useState<ApiCourt[] | null>(null)
@@ -161,6 +163,8 @@ function CourtsPanel() {
   const [sport, setSport] = useState<'padel' | 'tennis'>('padel')
   const [surface, setSurface] = useState('Glass')
   const [indoor, setIndoor] = useState(false)
+  const [imageUrl, setImageUrl] = useState('')
+  const [rate, setRate] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -180,8 +184,17 @@ function CourtsPanel() {
     setSaving(true)
     setError(null)
     try {
-      await api.createCourt({ name, sport, surface, indoor })
+      await api.createCourt({
+        name,
+        sport,
+        surface,
+        indoor,
+        image_url: imageUrl.trim() || undefined,
+        hourly_rate_cents: rate ? Math.round(Number(rate) * 100) : null,
+      })
       setName('')
+      setImageUrl('')
+      setRate('')
       setAdding(false)
       await load()
     } catch (err) {
@@ -227,6 +240,9 @@ function CourtsPanel() {
                     <p className="text-xs capitalize text-muted-foreground">
                       {c.sport} · {c.surface}
                       {/(indoor|outdoor)/i.test(c.surface) ? '' : ` · ${c.indoor ? 'Indoor' : 'Outdoor'}`}
+                      {c.hourly_rate_cents ? (
+                        <span className="font-medium text-primary"> · ${Math.round(c.hourly_rate_cents / 100)}/hr</span>
+                      ) : null}
                     </p>
                   </div>
                 </div>
@@ -296,6 +312,19 @@ function CourtsPanel() {
                 <input type="checkbox" checked={indoor} onChange={(e) => setIndoor(e.target.checked)} className="size-4 accent-primary" />
                 Indoor court
               </label>
+              <input
+                value={imageUrl}
+                onChange={(e) => setImageUrl(e.target.value)}
+                placeholder="Image URL (optional)"
+                className="h-10 rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-primary focus:ring-3 focus:ring-primary/15"
+              />
+              <input
+                type="number"
+                value={rate}
+                onChange={(e) => setRate(e.target.value)}
+                placeholder="Hourly rate $ (blank = sport rate)"
+                className="h-10 rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-primary focus:ring-3 focus:ring-primary/15"
+              />
             </div>
             {error ? <p className="mt-2 text-sm text-destructive">{error}</p> : null}
             <div className="mt-3 flex gap-2">
@@ -354,6 +383,15 @@ function RulesPanel() {
     setSaved(false)
   }
 
+  function updateWindows(fn: (ws: any[]) => any[]) {
+    setConfig((prev) => {
+      const next = structuredClone(prev ?? {})
+      next.peak_windows = fn(next.peak_windows ?? [])
+      return next
+    })
+    setSaved(false)
+  }
+
   async function save() {
     if (!config) return
     setSaving(true)
@@ -363,6 +401,7 @@ function RulesPanel() {
         min_players: config.min_players,
         cancellation_window_hours: config.cancellation_window_hours,
         unfilled_policy: config.unfilled_policy,
+        peak_windows: config.peak_windows,
       })
       setSaved(true)
     } catch {
@@ -434,6 +473,88 @@ function RulesPanel() {
               <option value="absorb">Club absorbs the empty seats</option>
             </select>
           </label>
+        </div>
+
+        {/* Peak hours — games starting in these windows use the peak multiplier */}
+        <div className="rounded-2xl border border-border bg-card p-5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold">Peak hours</p>
+              <p className="text-xs text-muted-foreground">
+                Games starting in these windows are charged the peak multiplier.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => updateWindows((ws) => [...ws, { days: [0, 1, 2, 3, 4], start: '17:00', end: '21:00' }])}
+              className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <Plus className="size-3.5" /> Add window
+            </button>
+          </div>
+          <div className="mt-4 flex flex-col gap-3">
+            {(config.peak_windows ?? []).length === 0 ? (
+              <p className="text-sm text-muted-foreground">No peak windows — every hour is off-peak.</p>
+            ) : null}
+            {(config.peak_windows ?? []).map((w: any, i: number) => (
+              <div key={i} className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-background p-3">
+                <div className="flex flex-wrap gap-1">
+                  {DAYS.map((d, di) => {
+                    const on = (w.days ?? []).includes(di)
+                    return (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() =>
+                          updateWindows((ws) =>
+                            ws.map((x, idx) =>
+                              idx === i
+                                ? {
+                                    ...x,
+                                    days: on
+                                      ? x.days.filter((v: number) => v !== di)
+                                      : [...(x.days ?? []), di].sort((a: number, b: number) => a - b),
+                                  }
+                                : x,
+                            ),
+                          )
+                        }
+                        className={cn(
+                          'size-8 rounded-lg text-xs font-medium transition-colors',
+                          on ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground hover:text-foreground',
+                        )}
+                      >
+                        {d[0]}
+                      </button>
+                    )
+                  })}
+                </div>
+                <div className="ml-auto flex items-center gap-1.5">
+                  <input
+                    type="time"
+                    value={w.start ?? '17:00'}
+                    onChange={(e) => updateWindows((ws) => ws.map((x, idx) => (idx === i ? { ...x, start: e.target.value } : x)))}
+                    className="h-9 rounded-lg border border-border bg-background px-2 text-sm outline-none focus:border-primary"
+                  />
+                  <span className="text-muted-foreground">–</span>
+                  <input
+                    type="time"
+                    value={w.end ?? '21:00'}
+                    onChange={(e) => updateWindows((ws) => ws.map((x, idx) => (idx === i ? { ...x, end: e.target.value } : x)))}
+                    className="h-9 rounded-lg border border-border bg-background px-2 text-sm outline-none focus:border-primary"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => updateWindows((ws) => ws.filter((_, idx) => idx !== i))}
+                    aria-label="Remove window"
+                    className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                  >
+                    <Trash2 className="size-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="flex items-center gap-3">

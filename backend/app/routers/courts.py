@@ -54,6 +54,7 @@ async def create_court(
         surface=payload.surface,
         indoor=payload.indoor,
         image_url=payload.image_url,
+        hourly_rate_cents=payload.hourly_rate_cents,
     )
     session.add(court)
     await session.commit()

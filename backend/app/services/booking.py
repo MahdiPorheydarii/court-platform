@@ -111,8 +111,9 @@ async def create_booking(
 
     peak = fee_logic.is_peak(start_time, cfg.peak_windows)
     sport_fee = cfg.fee_for(court.sport)
+    base_rate = court.hourly_rate_cents or sport_fee.base_rate_per_hour_cents
     total_cents = fee_logic.compute_total_fee_cents(
-        sport_fee.base_rate_per_hour_cents, duration_mins, sport_fee.peak_multiplier, peak
+        base_rate, duration_mins, sport_fee.peak_multiplier, peak
     )
 
     if split_count is None:

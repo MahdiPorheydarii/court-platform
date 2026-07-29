@@ -191,6 +191,8 @@ export type UpcomingGame = {
   pricePerPerson: number
   players: Player[]
   spotsTotal: number
+  spotsFilled?: number
+  matchId?: string
   status: 'confirmed' | 'filling'
 }
 

@@ -5,9 +5,13 @@ import Link from 'next/link'
 import { Calendar, Clock, MapPin, Users, Crown, Check, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AvatarStack } from '@/components/avatar-stack'
+import { MatchFillRing } from '@/components/match-fill-ring'
+import { ConfirmBurst } from '@/components/confirm-burst'
 import { GameRowSkeleton } from '@/components/skeletons'
 import { type UpcomingGame } from '@/lib/club-data'
+import { API_ENABLED } from '@/lib/config'
 import { useMyGames, useRequireAuth } from '@/lib/hooks'
+import { useMatchLive } from '@/lib/realtime'
 import { cn } from '@/lib/utils'
 
 type Tab = 'upcoming' | 'past'
@@ -19,9 +23,14 @@ const roleLabel: Record<UpcomingGame['role'], string> = {
 }
 
 function GameCard({ game }: { game: UpcomingGame }) {
-  const spotsLeft = game.spotsTotal - game.players.length
+  const isLiveMatch = game.kind === 'match' && Boolean(game.matchId) && API_ENABLED
+  const live = useMatchLive(game.matchId ?? '', game.spotsFilled ?? game.players.length, game.spotsTotal)
+  const filled = isLiveMatch ? live.filled : game.spotsFilled ?? game.players.length
+  const confirmed = game.status === 'confirmed' || (isLiveMatch && live.status === 'confirmed')
+  const spotsLeft = Math.max(0, game.spotsTotal - filled)
   return (
-    <article className="group flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 transition-shadow hover:shadow-lg sm:flex-row sm:items-center sm:justify-between">
+    <article className="group relative flex flex-col gap-4 overflow-hidden rounded-2xl border border-border bg-card p-5 transition-shadow hover:shadow-lg sm:flex-row sm:items-center sm:justify-between">
+      {isLiveMatch && live.justConfirmed ? <ConfirmBurst /> : null}
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <span
@@ -43,12 +52,10 @@ function GameCard({ game }: { game: UpcomingGame }) {
           <span
             className={cn(
               'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium',
-              game.status === 'confirmed'
-                ? 'bg-accent/15 text-accent'
-                : 'bg-primary/10 text-primary',
+              confirmed ? 'bg-accent/15 text-accent' : 'bg-primary/10 text-primary',
             )}
           >
-            {game.status === 'confirmed' ? (
+            {confirmed ? (
               <>
                 <Check className="size-3" /> Confirmed
               </>
@@ -75,9 +82,12 @@ function GameCard({ game }: { game: UpcomingGame }) {
         </div>
 
         <div className="flex items-center gap-3 pt-1">
+          {isLiveMatch && !confirmed ? (
+            <MatchFillRing filled={filled} total={game.spotsTotal} confirmed={confirmed} justConfirmed={live.justConfirmed} size={44} />
+          ) : null}
           <AvatarStack
             players={game.players}
-            emptySpots={game.status === 'filling' ? spotsLeft : 0}
+            emptySpots={!confirmed ? spotsLeft : 0}
           />
           <span className="text-sm text-muted-foreground">
             {game.role === 'host'

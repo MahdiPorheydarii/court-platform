@@ -8,7 +8,7 @@ that both the running app and the test suite get an identical schema.
 """
 from __future__ import annotations
 
-from sqlalchemy import DDL, event
+from sqlalchemy import DDL, event, text
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -53,10 +53,21 @@ async def get_session() -> AsyncSession:  # pragma: no cover - trivial dependenc
         yield session
 
 
+# Additive columns introduced after the initial schema. Applied idempotently on
+# every boot so an already-provisioned database picks them up without Alembic
+# (create_all only creates missing *tables*, never new columns).
+_LIGHT_MIGRATIONS = (
+    "ALTER TABLE courts ADD COLUMN IF NOT EXISTS hourly_rate_cents INTEGER",
+)
+
+
 async def init_models() -> None:
-    """Create all tables (and the extension) if they do not yet exist."""
+    """Create all tables (and the extension) if they do not yet exist, then
+    apply idempotent additive column migrations."""
     # Import models so they are registered on the metadata before create_all.
     from . import models  # noqa: F401
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        for stmt in _LIGHT_MIGRATIONS:
+            await conn.execute(text(stmt))

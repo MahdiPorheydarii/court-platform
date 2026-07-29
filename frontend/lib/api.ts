@@ -116,6 +116,7 @@ export interface ApiCourt {
   surface: string
   indoor: boolean
   image_url: string | null
+  hourly_rate_cents: number | null
   is_active: boolean
 }
 export interface ApiNotification {
@@ -234,6 +235,7 @@ export const api = {
     surface?: string
     indoor?: boolean
     image_url?: string
+    hourly_rate_cents?: number | null
   }) => request<ApiCourt>('/v1/courts', { method: 'POST', body: payload }),
   updateCourt: (id: string, payload: Record<string, unknown>) =>
     request<ApiCourt>(`/v1/courts/${id}`, { method: 'PATCH', body: payload }),
@@ -298,6 +300,8 @@ export function gameToUpcoming(g: ApiGame): UpcomingGame {
     pricePerPerson: g.price_per_person ?? 0,
     players: g.players.map(toPlayer),
     spotsTotal: g.spots_total,
+    spotsFilled: g.spots_filled,
+    matchId: g.kind === 'match' ? (g.match_id ?? g.id) : undefined,
     status: g.status === 'confirmed' ? 'confirmed' : 'filling',
   }
 }

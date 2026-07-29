@@ -66,8 +66,9 @@ async def serialize_match(session: AsyncSession, match: Match) -> MatchOut:
         cfg = ClubConfig(club.config)
         peak = fee_logic.is_peak(match.start_time, cfg.peak_windows)
         sport_fee = cfg.fee_for(match.sport)
+        base_rate = (court.hourly_rate_cents if court else None) or sport_fee.base_rate_per_hour_cents
         total = fee_logic.compute_total_fee_cents(
-            sport_fee.base_rate_per_hour_cents, match.duration_mins, sport_fee.peak_multiplier, peak
+            base_rate, match.duration_mins, sport_fee.peak_multiplier, peak
         )
         ppc = -(-total // max(1, match.max_players))  # ceil at a full split
 
