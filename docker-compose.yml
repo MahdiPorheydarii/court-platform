@@ -1,23 +1,22 @@
 # AcePair — full stack: Postgres + FastAPI API + Next.js web.
 #
-# Dokploy notes
-# -------------
-# * Point a domain at the `web` service (port 3000) and, if the browser calls
-#   the API directly, a domain at `api` (port 8000).
-# * Set these env vars in Dokploy (or a .env next to this file):
-#     JWT_SECRET       – long random string used to sign tokens
-#     POSTGRES_PASSWORD– database password
-#     API_PUBLIC_URL   – the API's public URL (baked into the web build so the
-#                        browser knows where to call, e.g. https://api.acepair.app)
-#     CORS_ORIGINS     – the web app's public origin (e.g. https://acepair.app)
-#   Leaving API_PUBLIC_URL empty ships the web app in showcase (demo-data) mode.
+# Secrets & config come from the environment (a .env next to this file, or the
+# Dokploy env panel) — nothing sensitive is hardcoded here. See .env.example.
+#
+# No host ports are published: on Dokploy, Traefik routes to the `web` (3000)
+# and `api` (8000) containers by domain over the compose network. The services
+# EXPOSE those ports for Traefik to target.
+#
+# Required env: POSTGRES_PASSWORD, JWT_SECRET
+# Recommended : API_PUBLIC_URL (the API's public URL, baked into the web build),
+#               CORS_ORIGINS (the web app's public origin), SEED_DEMO_PASSWORD
 
 services:
   db:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: acepair
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-acepair}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in your env}
       POSTGRES_DB: acepair
     volumes:
       - acepair_db:/var/lib/postgresql/data
@@ -31,16 +30,17 @@ services:
   api:
     build: ./backend
     environment:
-      DATABASE_URL: postgresql+asyncpg://acepair:${POSTGRES_PASSWORD:-acepair}@db:5432/acepair
-      JWT_SECRET: ${JWT_SECRET:-please-change-me}
+      DATABASE_URL: postgresql+asyncpg://acepair:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in your env}@db:5432/acepair
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in your env}
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
       SEED_DEMO_DATA: "true"
+      SEED_DEMO_PASSWORD: ${SEED_DEMO_PASSWORD:-}
       ENVIRONMENT: production
     depends_on:
       db:
         condition: service_healthy
-    ports:
-      - "8000:8000"
+    expose:
+      - "8000"
     restart: unless-stopped
 
   web:
@@ -48,10 +48,11 @@ services:
       context: ./frontend
       args:
         NEXT_PUBLIC_API_URL: ${API_PUBLIC_URL:-}
+        NEXT_PUBLIC_DEMO_PASSWORD: ${SEED_DEMO_PASSWORD:-}
     depends_on:
       - api
-    ports:
-      - "3000:3000"
+    expose:
+      - "3000"
     restart: unless-stopped
 
 volumes:

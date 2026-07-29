@@ -10,11 +10,14 @@ WORKDIR /app
 RUN npm install -g pnpm@11
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# Public API URL is inlined at build time (Next.js NEXT_PUBLIC_*). When empty,
-# the app runs in showcase mode on demo data.
+# Public config is inlined at build time (Next.js NEXT_PUBLIC_*). Empty API URL
+# runs the app in showcase mode on demo data; empty demo password hides the
+# one-click demo-login button.
 ARG NEXT_PUBLIC_API_URL=""
-ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
-ENV NEXT_TELEMETRY_DISABLED=1
+ARG NEXT_PUBLIC_DEMO_PASSWORD=""
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
+    NEXT_PUBLIC_DEMO_PASSWORD=$NEXT_PUBLIC_DEMO_PASSWORD \
+    NEXT_TELEMETRY_DISABLED=1
 RUN pnpm build
 
 FROM node:22-alpine AS runner

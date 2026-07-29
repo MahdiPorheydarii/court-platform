@@ -82,13 +82,18 @@ Three pieces, all shipped together with Docker Compose:
 
 ## Run it locally
 
-You need Docker.
+You need Docker. Set a couple of secrets first (nothing is hardcoded):
 
 ```bash
+cp .env.example .env    # then set POSTGRES_PASSWORD, JWT_SECRET, SEED_DEMO_PASSWORD
 docker compose up --build
 ```
 
-Then open:
+> For local access, temporarily add `ports: ["8000:8000"]` / `["3000:3000"]` to
+> the `api`/`web` services — the committed compose omits host ports because the
+> hosted deploy routes by domain via Traefik.
+
+Then (with ports mapped) open:
 
 - **Web app** → http://localhost:3000
 - **API docs** (interactive) → http://localhost:8000/docs
@@ -100,7 +105,7 @@ The API seeds a **demo club** on first boot so nothing is empty:
 |---|---|
 | Club address | `riverside` |
 | Email | `alex@riverside.club` |
-| Password | `acepair123` |
+| Password | your `SEED_DEMO_PASSWORD` |
 
 > By default the web app runs in **showcase mode** on built-in demo data so it
 > always looks alive. To wire it to the live API, set `API_PUBLIC_URL` (see
@@ -172,18 +177,21 @@ Key endpoints (full interactive list at `/docs`):
 
 ## Deploy (Dokploy)
 
-The repo's `docker-compose.yml` builds all three services. In Dokploy:
+The repo's `docker-compose.yml` builds all three services. No host ports are
+published — Traefik routes to the `web` (3000) and `api` (8000) containers by
+domain. In Dokploy:
 
-1. Point a domain at the **web** service (port 3000) and, if the browser calls the
-   API directly, a domain at the **api** service (port 8000).
-2. Set these environment variables:
+1. Point a domain at the **web** service and, since the browser calls the API
+   directly, a domain at the **api** service.
+2. Set these environment variables (see `.env.example`):
 
    | Variable | What it's for |
    |---|---|
-   | `JWT_SECRET` | Long random string that signs login tokens |
-   | `POSTGRES_PASSWORD` | Database password |
+   | `POSTGRES_PASSWORD` | Database password (required) |
+   | `JWT_SECRET` | Long random string that signs login tokens (required) |
    | `API_PUBLIC_URL` | The API's public URL, baked into the web build so the browser knows where to call |
    | `CORS_ORIGINS` | The web app's public origin |
+   | `SEED_DEMO_PASSWORD` | Password for the seeded demo login |
 
 3. Deploy. Confirm it's live at `<api-domain>/health` (should return
    `{"status":"ok"}`).

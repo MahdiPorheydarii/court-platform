@@ -13,7 +13,14 @@ import { cn } from '@/lib/utils'
 
 type Mode = 'signin' | 'register'
 
-const DEMO = { slug: 'riverside', email: 'alex@riverside.club', password: 'acepair123' }
+// The one-click demo login is only offered when a demo password is provided at
+// build time (NEXT_PUBLIC_DEMO_PASSWORD) — no credentials live in source.
+const DEMO = {
+  slug: process.env.NEXT_PUBLIC_DEMO_SLUG || 'riverside',
+  email: process.env.NEXT_PUBLIC_DEMO_EMAIL || 'alex@riverside.club',
+  password: process.env.NEXT_PUBLIC_DEMO_PASSWORD || '',
+}
+const DEMO_ENABLED = DEMO.password.length > 0
 
 export default function LoginPage() {
   const router = useRouter()
@@ -153,7 +160,7 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          {mode === 'signin' && API_ENABLED ? (
+          {mode === 'signin' && API_ENABLED && DEMO_ENABLED ? (
             <button
               type="button"
               onClick={() => signIn(DEMO)}

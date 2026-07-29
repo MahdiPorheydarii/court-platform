@@ -20,11 +20,15 @@ class Settings(BaseSettings):
     debug: bool = False
 
     # --- Database ---
-    # Async SQLAlchemy URL. asyncpg driver is assumed.
-    database_url: str = "postgresql+asyncpg://acepair:acepair@localhost:5432/acepair"
+    # Async SQLAlchemy URL (asyncpg). Always provided via DATABASE_URL in any
+    # real run; this password-less localhost value is only a bare dev fallback.
+    database_url: str = "postgresql+asyncpg://acepair@localhost:5432/acepair"
 
     # --- Auth ---
-    jwt_secret: str = "dev-secret-change-me"
+    # Never hardcode a real secret. Provide JWT_SECRET via the environment; in a
+    # non-dev deploy a missing/weak value is replaced by a random per-process
+    # secret at startup (see app.main._guard_jwt_secret).
+    jwt_secret: str = ""
     jwt_algorithm: str = "HS256"
     access_token_ttl_minutes: int = 60 * 24 * 7  # one week
 
@@ -41,6 +45,10 @@ class Settings(BaseSettings):
     # When true, a demo club + courts + members are created on first boot so the
     # deployed instance is never an empty shell.
     seed_demo_data: bool = True
+    # Password for the seeded demo accounts. Set via SEED_DEMO_PASSWORD so no
+    # credential is hardcoded; when empty a random one is generated per boot
+    # (the demo data still exists, just without a publicly-known login).
+    seed_demo_password: str = ""
 
     @property
     def cors_origin_list(self) -> List[str]:

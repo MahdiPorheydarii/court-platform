@@ -57,24 +57,21 @@ and split court fees.
 """
 
 
-_WEAK_SECRETS = {"dev-secret-change-me", "change-me", "please-change-me", ""}
-
-
 def _guard_jwt_secret() -> None:
     """Never run a non-dev deploy with a guessable token-signing secret.
 
     Rather than crash-looping a deploy that forgot to set JWT_SECRET, we mint a
     strong random one for this process and warn loudly. Tokens then won't
-    survive a restart — the fix is to set a real JWT_SECRET.
+    survive a restart — the fix is to set a real, long JWT_SECRET.
     """
     if settings.environment == "development":
         return
-    if settings.jwt_secret in _WEAK_SECRETS or len(settings.jwt_secret) < 16:
+    if len(settings.jwt_secret) < 24:  # too short/unset to be safe
         import secrets
 
         settings.jwt_secret = secrets.token_urlsafe(48)
         logger.warning(
-            "JWT_SECRET was unset or weak; generated a random per-process secret. "
+            "JWT_SECRET was unset or too short; generated a random per-process secret. "
             "Set a strong, stable JWT_SECRET so tokens survive restarts."
         )
 

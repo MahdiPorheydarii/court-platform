@@ -5,18 +5,20 @@ members, and a few open matches so the deployed instance — and the frontend
 pointed at it — feels alive immediately. Safe to run every boot: it no-ops if
 the demo club already exists.
 
-Demo login (documented in the README):
+Demo login:
     club slug : riverside
     email     : alex@riverside.club
-    password  : acepair123
+    password  : value of the SEED_DEMO_PASSWORD env var
 """
 from __future__ import annotations
 
 import logging
+import secrets
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 
+from .config import settings
 from .database import SessionLocal
 from .domain.config import DEFAULT_CONFIG
 from .models import (
@@ -33,7 +35,6 @@ from .security import hash_password
 logger = logging.getLogger("acepair.seed")
 
 DEMO_SLUG = "riverside"
-DEMO_PASSWORD = "acepair123"
 
 
 def _next_weekday(base: datetime, weekday: int, hour: int, minute: int = 0) -> datetime:
@@ -70,7 +71,8 @@ async def seed_demo() -> None:
             ("Tom Brenner", "tom@riverside.club", Role.MEMBER, "Improver", "bg-accent/20 text-accent"),
         ]
         members: dict = {}
-        pw = hash_password(DEMO_PASSWORD)
+        demo_password = settings.seed_demo_password or secrets.token_urlsafe(9)
+        pw = hash_password(demo_password)
         for name, email, role, level, tone in people:
             m = Member(
                 club_id=club.id,
