@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { SlidersHorizontal, Compass, Radar, CalendarPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -125,23 +126,25 @@ export function DiscoverFeed() {
         </Button>
       </div>
 
-      {/* Upcoming games — empty state as storytelling */}
+      {/* Invitation banner */}
       <div className="mt-6 flex flex-col items-start gap-3 rounded-2xl border border-border bg-secondary/40 p-5 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <span className="flex size-10 items-center justify-center rounded-xl bg-card text-primary">
             <CalendarPlus className="size-5" />
           </span>
           <div>
-            <p className="font-medium">No games on your calendar</p>
+            <p className="font-medium">Ready for your next match?</p>
             <p className="text-sm text-muted-foreground">
-              Join one below and it will show up here instantly.
+              Post a request or join a game below — it lands on your calendar instantly.
             </p>
           </div>
         </div>
-        <span className="text-sm text-muted-foreground">
-          <span className="font-semibold text-foreground">7 friends</span> played
-          this week
-        </span>
+        <Link
+          href="/my-games"
+          className="text-sm font-medium text-primary transition-colors hover:text-primary/80"
+        >
+          View your schedule →
+        </Link>
       </div>
 
       {/* Tabs */}

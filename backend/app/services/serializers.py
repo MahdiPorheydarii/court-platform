@@ -11,6 +11,8 @@ from typing import Dict, List, Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..domain import fees as fee_logic
+from ..domain.config import ClubConfig
 from ..models import Booking, Club, Court, Match, Member
 from ..schemas import BookingOut, LedgerEntryOut, MatchOut, PlayerOut
 from .booking import get_ledger
@@ -57,7 +59,17 @@ async def serialize_match(session: AsyncSession, match: Match) -> MatchOut:
 
     spots_total = match.max_players
     spots_filled = len(participants)
+    # Confirmed matches carry the real split; for an open match show the expected
+    # per-person price *if it fills* (fee split across max players) rather than $0.
     ppc = match.price_per_person_cents
+    if ppc is None and club is not None:
+        cfg = ClubConfig(club.config)
+        peak = fee_logic.is_peak(match.start_time, cfg.peak_windows)
+        sport_fee = cfg.fee_for(match.sport)
+        total = fee_logic.compute_total_fee_cents(
+            sport_fee.base_rate_per_hour_cents, match.duration_mins, sport_fee.peak_multiplier, peak
+        )
+        ppc = -(-total // max(1, match.max_players))  # ceil at a full split
 
     return MatchOut(
         id=match.id,
