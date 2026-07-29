@@ -19,6 +19,7 @@ interface SessionState {
   authed: boolean
   login: (token: string, member: ApiMember, club: ApiClub) => void
   logout: () => void
+  updateMember: (member: ApiMember) => void
 }
 
 const SessionContext = createContext<SessionState | null>(null)
@@ -63,9 +64,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     setClub(null)
   }, [])
 
+  const updateMember = useCallback((m: ApiMember) => setMember(m), [])
+
   const value = useMemo<SessionState>(
-    () => ({ token, member, club, loading, authed: Boolean(token), login, logout }),
-    [token, member, club, loading, login, logout],
+    () => ({ token, member, club, loading, authed: Boolean(token), login, logout, updateMember }),
+    [token, member, club, loading, login, logout, updateMember],
   )
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>
@@ -83,6 +86,7 @@ export function useSession(): SessionState {
       authed: false,
       login: () => {},
       logout: () => {},
+      updateMember: () => {},
     }
   }
   return ctx

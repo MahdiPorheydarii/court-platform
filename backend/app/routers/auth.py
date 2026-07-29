@@ -14,8 +14,11 @@ from ..schemas import (
     LoginRequest,
     MemberOut,
     MemberRegister,
+    MemberUpdate,
     TokenResponse,
 )
+
+_VALID_LEVELS = {"Beginner", "Improver", "Intermediate", "Advanced"}
 from ..security import create_access_token, hash_password, verify_password
 
 router = APIRouter(prefix="/v1", tags=["auth"])
@@ -142,5 +145,26 @@ async def login(payload: LoginRequest, session: AsyncSession = Depends(get_db)) 
 async def me(ctx: AuthContext = Depends(get_auth_context)) -> dict:
     return {
         "member": MemberOut.from_model(ctx.member).model_dump(mode="json"),
+        "club": ClubOut.model_validate(ctx.club).model_dump(mode="json"),
+    }
+
+
+@router.patch("/auth/me", summary="Update your profile (e.g. skill level)")
+async def update_me(
+    payload: MemberUpdate,
+    ctx: AuthContext = Depends(get_auth_context),
+    session: AsyncSession = Depends(get_db),
+) -> dict:
+    member = ctx.member
+    if payload.name is not None:
+        member.name = payload.name
+    if payload.skill_level is not None:
+        if payload.skill_level not in _VALID_LEVELS:
+            raise ConflictError("Unknown skill level.")
+        member.skill_level = payload.skill_level
+    await session.commit()
+    await session.refresh(member)
+    return {
+        "member": MemberOut.from_model(member).model_dump(mode="json"),
         "club": ClubOut.model_validate(ctx.club).model_dump(mode="json"),
     }

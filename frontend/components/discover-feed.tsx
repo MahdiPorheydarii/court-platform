@@ -1,12 +1,12 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { SlidersHorizontal, CalendarPlus, Compass } from 'lucide-react'
+import { SlidersHorizontal, Compass, Radar, CalendarPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { MatchCard } from '@/components/match-card'
 import { CourtCard } from '@/components/court-card'
-import { HostMatchDialog } from '@/components/host-match-dialog'
+import { FindMatchDialog } from '@/components/find-match-dialog'
 import { CardGridSkeleton } from '@/components/skeletons'
 import { useDiscoverData, useRequireAuth } from '@/lib/hooks'
 import { type Level, type Sport } from '@/lib/club-data'
@@ -77,7 +77,7 @@ export function DiscoverFeed() {
   const [level, setLevel] = useState<Level | 'any'>('any')
   const [hostOpen, setHostOpen] = useState(false)
   const { member } = useRequireAuth()
-  const { matches: allMatches, courts: allCourts, loading } = useDiscoverData()
+  const { matches: allMatches, courts: allCourts, loading, refresh } = useDiscoverData()
 
   const matches = useMemo(() => {
     return allMatches.filter((m) => {
@@ -116,8 +116,8 @@ export function DiscoverFeed() {
           className="h-11 w-fit rounded-full px-5"
           data-icon="inline-start"
         >
-          <CalendarPlus className="size-4" />
-          Host a match
+          <Radar className="size-4" />
+          Find a match
         </Button>
       </div>
 
@@ -226,7 +226,11 @@ export function DiscoverFeed() {
         )}
       </div>
 
-      <HostMatchDialog open={hostOpen} onClose={() => setHostOpen(false)} />
+      <FindMatchDialog
+        open={hostOpen}
+        onClose={() => setHostOpen(false)}
+        onSubmitted={refresh}
+      />
     </div>
   )
 }

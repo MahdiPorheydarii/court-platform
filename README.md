@@ -198,6 +198,52 @@ domain. In Dokploy:
 
 ---
 
+## Points to confirm (answered)
+
+The brief left five things open. Here's how AcePair resolves each — all
+per-club configurable.
+
+**1. Matchmaking criteria — how players are matched.**
+A member posts a "looking for players" request with sport, their skill level,
+a time preference (a day + morning/afternoon/evening window), and duration.
+AcePair groups compatible open requests when they share: the same sport, an
+overlapping time window (so a common start time exists), skill within the
+club's tolerance (default ±1 band on Beginner → Improver → Intermediate →
+Advanced), the same duration, and compatible court preference. When a group
+reaches the club's minimum player count it **auto-confirms** — creating the
+booking, the fee split, and notifications. A member's skill level is saved to
+their profile, so it's pre-filled next time (and editable any time).
+
+**2. Fee model — rate, peak, and partial groups.**
+Fee = base rate **per court, per hour** × duration × a **peak multiplier** when
+the start falls in a configured peak window. It's split **evenly among
+confirmed players**, reconciled to the penny (integer cents; any remainder is
+distributed one cent at a time). Under-filled groups are handled per the club's
+`unfilled_policy`: `cancel` (default — void, no charge), `partial` (present
+players split the whole fee), or `absorb` (each present player pays one fair
+quorum-share and the club covers the empty seats).
+
+**3. Cancellation & no-shows.**
+Each club sets a cancellation window (hours). **Bookings:** cancelling outside
+the window frees the slot and waives the charge; inside the window frees the
+slot but the charge stands. **Matched games:** leaving frees your spot — outside
+the window your share is waived, inside it stands; the host role reassigns
+automatically; a match that never fills by its start time is resolved by the
+unfilled policy above.
+
+**4. Payment handling — collect or calculate?**
+AcePair **only calculates and records** fee splits; it does not move money.
+Every booking produces an auditable **ledger** (one row per player). The code is
+structured so a processor like Stripe drops in behind the ledger without a
+rewrite.
+
+**5. Notifications.**
+Every member has a persisted notification feed (the bell menu) **plus a live
+WebSocket stream**. They're notified on: match confirmed, a player joined or
+left their match, a match cancelled for not filling, booking confirmed, booking
+cancelled, and split invitations. The delivery channel is pluggable, so email
+or push can be swapped in later.
+
 ## What's intentionally deferred
 
 - **Payments** aren't processed — AcePair calculates and records fee splits; a

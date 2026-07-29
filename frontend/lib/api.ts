@@ -171,6 +171,11 @@ export const api = {
   }) => request<TokenResponse>('/v1/clubs', { method: 'POST', auth: false, body: payload }),
   me: (token?: string) =>
     request<{ member: ApiMember; club: ApiClub }>('/v1/auth/me', { token }),
+  updateMe: (payload: { name?: string; skill_level?: string }) =>
+    request<{ member: ApiMember; club: ApiClub }>('/v1/auth/me', {
+      method: 'PATCH',
+      body: payload,
+    }),
 
   // --- Discovery ---
   listMatches: (status = 'open', sport?: Sport) =>

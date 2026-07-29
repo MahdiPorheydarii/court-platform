@@ -44,6 +44,7 @@ export function useDiscoverData() {
   const [matches, setMatches] = useState<OpenMatch[]>([])
   const [courts, setCourts] = useState<CourtSlot[]>([])
   const [loading, setLoading] = useState(true)
+  const [tick, setTick] = useState(0)
 
   useEffect(() => {
     if (!API_ENABLED) {
@@ -74,9 +75,14 @@ export function useDiscoverData() {
     return () => {
       cancelled = true
     }
-  }, [authed, sessionLoading])
+  }, [authed, sessionLoading, tick])
 
-  return { matches, courts, loading: loading || (API_ENABLED && sessionLoading) }
+  return {
+    matches,
+    courts,
+    loading: loading || (API_ENABLED && sessionLoading),
+    refresh: () => setTick((t) => t + 1),
+  }
 }
 
 export function useMyGames(when: 'upcoming' | 'past') {

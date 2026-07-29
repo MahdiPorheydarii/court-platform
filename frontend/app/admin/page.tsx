@@ -225,7 +225,8 @@ function CourtsPanel() {
                   <div>
                     <p className={cn('font-medium', !c.is_active && 'text-muted-foreground')}>{c.name}</p>
                     <p className="text-xs capitalize text-muted-foreground">
-                      {c.sport} · {c.surface} · {c.indoor ? 'Indoor' : 'Outdoor'}
+                      {c.sport} · {c.surface}
+                      {/(indoor|outdoor)/i.test(c.surface) ? '' : ` · ${c.indoor ? 'Indoor' : 'Outdoor'}`}
                     </p>
                   </div>
                 </div>

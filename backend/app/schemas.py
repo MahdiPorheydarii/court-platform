@@ -56,6 +56,15 @@ class MemberRegister(BaseModel):
     skill_level: str = Field(default="Intermediate")
 
 
+class MemberUpdate(BaseModel):
+    """Editable profile fields — notably skill level, so it's remembered."""
+
+    name: Optional[str] = Field(default=None, min_length=1, max_length=120)
+    skill_level: Optional[str] = Field(
+        default=None, examples=["Beginner", "Improver", "Intermediate", "Advanced"]
+    )
+
+
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"

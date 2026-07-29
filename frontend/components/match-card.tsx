@@ -1,9 +1,13 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { Check, Clock, MapPin, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AvatarStack } from '@/components/avatar-stack'
+import { api, ApiError } from '@/lib/api'
+import { API_ENABLED } from '@/lib/config'
+import { useSession } from '@/lib/session'
 import { cn } from '@/lib/utils'
 import { levelTone, type OpenMatch, type Player } from '@/lib/club-data'
 
@@ -24,28 +28,41 @@ function SportBadge({ sport }: { sport: OpenMatch['sport'] }) {
 }
 
 export function MatchCard({ match }: { match: OpenMatch }) {
+  const { authed } = useSession()
+  const router = useRouter()
   const [joined, setJoined] = useState(false)
   const [players, setPlayers] = useState(match.players)
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
 
   const spotsLeft = match.spotsTotal - players.length
+  const isLive = API_ENABLED && match.id.includes('-') && match.id.length >= 32
 
   function handleJoin() {
     if (joined || spotsLeft <= 0) return
+    // Logged-out visitors (e.g. on the landing preview) are sent to sign in.
+    if (API_ENABLED && !authed) {
+      router.push('/login')
+      return
+    }
     setError(null)
     // Optimistic: reflect the join immediately.
     setJoined(true)
     setPlayers((prev) => [...prev, you])
 
     startTransition(async () => {
-      await new Promise((r) => setTimeout(r, 700))
-      // Simulated failure path is disabled; here is where a server action would run.
-      const ok = true
-      if (!ok) {
+      if (!isLive) {
+        await new Promise((r) => setTimeout(r, 600)) // demo mode
+        return
+      }
+      try {
+        await api.joinMatch(match.id)
+      } catch (e) {
         setJoined(false)
         setPlayers(match.players)
-        setError('Could not join — that spot was just taken. Try again.')
+        setError(
+          e instanceof ApiError ? e.message : 'Could not join — that spot was just taken.',
+        )
       }
     })
   }
