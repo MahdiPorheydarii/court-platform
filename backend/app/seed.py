@@ -45,6 +45,143 @@ def _next_weekday(base: datetime, weekday: int, hour: int, minute: int = 0) -> d
     return target.replace(hour=hour, minute=minute, second=0, microsecond=0)
 
 
+# A few more clubs so the platform showcase is a real, multi-tenant directory
+# rather than one club. Each is lightweight: courts, a handful of members, and
+# one or two open games (kept below min_players so they stay open).
+_EXTRA_CLUBS = [
+    {
+        "name": "Sundown Padel", "slug": "sundown", "sports": ["padel"],
+        "location": "Marbella", "tagline": "Golden-hour padel a few steps from the sea.",
+        "cover_image": "/images/court-padel.jpg",
+        "courts": [("Court 1", "padel"), ("Court 2", "padel"), ("Court 3", "padel"), ("Court 4", "padel")],
+        "members": [("Lucia Gomez", "Advanced"), ("Diego Torres", "Intermediate"), ("Hana Kim", "Improver")],
+        "matches": [
+            {"title": "Sunset doubles", "sport": "padel", "skill": "Intermediate", "court": 0,
+             "day": 0, "hour": 18, "dur": 90, "players": [1, 2]},
+        ],
+    },
+    {
+        "name": "Northside Tennis", "slug": "northside", "sports": ["tennis"],
+        "location": "Brooklyn, NY", "tagline": "Clay and hard courts in the heart of the city.",
+        "cover_image": "/images/court-clay.jpg",
+        "courts": [("Court A", "tennis"), ("Court B", "tennis"), ("Court C", "tennis")],
+        "members": [("Marcus Bell", "Advanced"), ("Aisha Rahman", "Intermediate"), ("Tomas Novak", "Improver")],
+        "matches": [
+            {"title": "Morning singles", "sport": "tennis", "skill": "Advanced", "court": 0,
+             "day": 5, "hour": 8, "dur": 60, "players": [0]},
+        ],
+    },
+    {
+        "name": "Harbour Racquets", "slug": "harbour", "sports": ["padel", "tennis"],
+        "location": "Lisbon", "tagline": "Padel and tennis on the waterfront.",
+        "cover_image": "/images/players.jpg",
+        "courts": [("Court 1", "padel"), ("Court 2", "padel"), ("Court 3", "padel"),
+                   ("Baseline 1", "tennis"), ("Baseline 2", "tennis")],
+        "members": [("Sofia Almeida", "Intermediate"), ("Rui Costa", "Advanced"),
+                    ("Ingrid Larsen", "Improver"), ("Kofi Mensah", "Intermediate")],
+        "matches": [
+            {"title": "Waterfront doubles", "sport": "padel", "skill": "Intermediate", "court": 0,
+             "day": 1, "hour": 18, "dur": 90, "players": [0, 3]},
+            {"title": "Baseline singles", "sport": "tennis", "skill": "Advanced", "court": 3,
+             "day": 2, "hour": 8, "dur": 60, "players": [1]},
+        ],
+    },
+    {
+        "name": "Vantage Padel Club", "slug": "vantage", "sports": ["padel"],
+        "location": "Dubai", "tagline": "Rooftop panoramic padel, floodlit after dark.",
+        "cover_image": "/images/hero-court.jpg",
+        "courts": [("Sky 1", "padel"), ("Sky 2", "padel"), ("Sky 3", "padel"), ("Sky 4", "padel")],
+        "members": [("Omar Haddad", "Advanced"), ("Lena Fischer", "Intermediate"), ("Priyanka Rao", "Improver")],
+        "matches": [
+            {"title": "Floodlit padel", "sport": "padel", "skill": "Intermediate", "court": 0,
+             "day": 4, "hour": 20, "dur": 90, "players": [1]},
+        ],
+    },
+]
+
+
+async def _seed_extra_clubs(session, pw: str, now: datetime) -> int:
+    """Seed the additional showcase clubs. Returns how many were created."""
+    made = 0
+    for spec in _EXTRA_CLUBS:
+        club = Club(
+            name=spec["name"],
+            slug=spec["slug"],
+            config={
+                **DEFAULT_CONFIG,
+                "sports": spec["sports"],
+                "location": spec["location"],
+                "tagline": spec["tagline"],
+                "cover_image": spec["cover_image"],
+                "showcase": True,
+            },
+        )
+        session.add(club)
+        await session.flush()
+
+        first = spec["slug"].split("-")[0]
+        members = []
+        for i, (name, level) in enumerate(spec["members"]):
+            handle = name.split()[0].lower()
+            m = Member(
+                club_id=club.id,
+                name=name,
+                email=f"{handle}@{spec['slug']}.club",
+                hashed_password=pw,
+                role=Role.ADMIN if i == 0 else Role.MEMBER,
+                skill_level=level,
+                tone="bg-primary/15 text-primary",
+            )
+            session.add(m)
+            members.append(m)
+        # A dedicated admin login (admin@<slug>.club) mirrors the live data.
+        admin = Member(
+            club_id=club.id,
+            name=f"{spec['name']} Admin",
+            email=f"admin@{spec['slug']}.club",
+            hashed_password=pw,
+            role=Role.ADMIN,
+            skill_level="Advanced",
+            tone="bg-primary/15 text-primary",
+        )
+        session.add(admin)
+        await session.flush()
+
+        courts = []
+        for name, sport in spec["courts"]:
+            c = Court(club_id=club.id, name=name, sport=sport, surface="", indoor=False)
+            session.add(c)
+            courts.append(c)
+        await session.flush()
+
+        for spec_match in spec["matches"]:
+            start = _next_weekday(now, spec_match["day"], spec_match["hour"], 0)
+            sport = spec_match["sport"]
+            court = courts[spec_match["court"]]
+            player_idxs = spec_match["players"]
+            match = Match(
+                club_id=club.id,
+                court_id=court.id,
+                host_member_id=members[player_idxs[0]].id,
+                title=spec_match["title"],
+                sport=sport,
+                skill_level=spec_match["skill"],
+                start_time=start,
+                end_time=start + timedelta(minutes=spec_match["dur"]),
+                duration_mins=spec_match["dur"],
+                min_players=4 if sport == "padel" else 2,
+                max_players=4 if sport == "padel" else 2,
+                status=MatchStatus.OPEN,
+            )
+            for k, idx in enumerate(player_idxs):
+                match.participants.append(
+                    MatchParticipant(member_id=members[idx].id, role="host" if k == 0 else "player")
+                )
+            session.add(match)
+        made += 1
+    return made
+
+
 async def seed_demo() -> None:
     async with SessionLocal() as session:
         existing = (
@@ -56,7 +193,14 @@ async def seed_demo() -> None:
         club = Club(
             name="AcePair Riverside",
             slug=DEMO_SLUG,
-            config={**DEFAULT_CONFIG, "currency": "USD"},
+            config={
+                **DEFAULT_CONFIG,
+                "currency": "USD",
+                "location": "Riverside",
+                "tagline": "Where AcePair started — padel & tennis under the sun.",
+                "cover_image": "/images/hero-court.jpg",
+                "showcase": True,
+            },
         )
         session.add(club)
         await session.flush()
@@ -173,5 +317,9 @@ async def seed_demo() -> None:
                 )
             session.add(match)
 
+        extra = await _seed_extra_clubs(session, pw, now)
         await session.commit()
-        logger.info("seeded demo club '%s' with %d courts and %d members", DEMO_SLUG, len(courts), len(members))
+        logger.info(
+            "seeded demo club '%s' with %d courts and %d members, plus %d showcase clubs",
+            DEMO_SLUG, len(courts), len(members), extra,
+        )

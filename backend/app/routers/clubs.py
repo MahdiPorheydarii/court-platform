@@ -96,10 +96,14 @@ async def public_club(slug: str, session: AsyncSession = Depends(get_db)) -> Dic
             )
         )
     ).scalar_one()
+    raw = club.config or {}
     return {
         "name": club.name,
         "slug": club.slug,
         "sports": cfg.sports,
+        "location": raw.get("location"),
+        "tagline": raw.get("tagline"),
+        "cover_image": raw.get("cover_image"),
         "courts": courts,
         "open_matches": open_matches,
     }

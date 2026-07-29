@@ -258,7 +258,9 @@ export default function LoginPage() {
           <p className="max-w-md font-serif text-2xl font-semibold leading-snug text-balance">
             &ldquo;Never chase a fourth player again. Post a game, and AcePair fills it.&rdquo;
           </p>
-          <p className="mt-3 text-sm text-background/70">Members at 12 partner clubs</p>
+          <p className="mt-3 text-sm text-background/70">
+            {clubScoped && ctxClubName ? ctxClubName : 'Tennis & padel, made social'}
+          </p>
         </div>
       </div>
     </div>

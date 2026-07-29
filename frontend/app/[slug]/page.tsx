@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowRight, LayoutGrid, Loader2, Users, Zap } from 'lucide-react'
+import { ArrowRight, LayoutGrid, Loader2, MapPin, Users, Zap } from 'lucide-react'
 import { Logo } from '@/components/logo'
 import { Button } from '@/components/ui/button'
 import { api, ApiError } from '@/lib/api'
@@ -14,7 +14,16 @@ import { cn } from '@/lib/utils'
 
 const LEVELS: Level[] = ['Beginner', 'Improver', 'Intermediate', 'Advanced']
 
-type PublicClub = { name: string; slug: string; sports: string[]; courts: number; open_matches: number }
+type PublicClub = {
+  name: string
+  slug: string
+  sports: string[]
+  location: string | null
+  tagline: string | null
+  cover_image: string | null
+  courts: number
+  open_matches: number
+}
 
 export default function ClubPage() {
   const { slug } = useParams<{ slug: string }>()
@@ -173,11 +182,21 @@ export default function ClubPage() {
         </div>
       </div>
 
-      {/* Right: visual */}
+      {/* Right: visual — the club's own cover when it has one */}
       <div className="relative hidden overflow-hidden lg:block">
-        <img src="/images/hero-court.jpg" alt="" loading="eager" className="absolute inset-0 size-full bg-muted object-cover" />
+        <img
+          src={club.cover_image || '/images/hero-court.jpg'}
+          alt=""
+          loading="eager"
+          className="absolute inset-0 size-full bg-muted object-cover"
+        />
         <div className="absolute inset-0 bg-gradient-to-t from-foreground/80 via-foreground/30 to-foreground/10" />
         <div className="absolute inset-x-0 bottom-0 p-10 text-background">
+          {club.location ? (
+            <p className="mb-2 inline-flex items-center gap-1.5 text-sm font-medium text-background/85">
+              <MapPin className="size-4" /> {club.location}
+            </p>
+          ) : null}
           <p className="max-w-md font-serif text-2xl font-semibold leading-snug text-balance">
             Never chase a fourth player again — {club.name} games fill themselves.
           </p>
