@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { SlidersHorizontal, Compass, Radar, CalendarPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -76,6 +76,10 @@ export function DiscoverFeed() {
   const [showFilters, setShowFilters] = useState(false)
   const [level, setLevel] = useState<Level | 'any'>('any')
   const [hostOpen, setHostOpen] = useState(false)
+  // Compute the time-of-day greeting on the client only — using new Date() during
+  // SSR vs hydration would mismatch across timezones and break hydration.
+  const [greet, setGreet] = useState('Welcome back')
+  useEffect(() => setGreet(greeting()), [])
   const { member } = useRequireAuth()
   const { matches: allMatches, courts: allCourts, loading, refresh } = useDiscoverData()
 
@@ -105,7 +109,7 @@ export function DiscoverFeed() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-sm text-muted-foreground">
-            {greeting()}, {member?.name?.split(' ')[0] ?? 'player'}
+            {greet}, {member?.name?.split(' ')[0] ?? 'player'}
           </p>
           <h1 className="mt-1 font-serif text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
             Find your next match
