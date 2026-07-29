@@ -1,12 +1,28 @@
 # AcePair 🎾
 
-**AcePair is a members club for tennis & padel, in software form.** Clubs onboard
-their courts and rules; members find open games, get matched into full groups by
-skill and time, book courts without ever double-booking, and split the court fee
-automatically.
+**AcePair is a general-purpose matchmaking & booking platform for tennis and
+padel clubs.** It isn't tied to a single venue: any club can onboard, configure
+its own courts and rules, and operate independently inside one shared system.
+
+Members find open games, get matched into full groups by skill and time, book
+courts without ever double-booking, and split the court fee automatically. Club
+admins define their courts, hours, pricing, and matchmaking rules — all driven by
+configuration, never code.
 
 One deployed app serves *every* club (multi-tenant). Each club is walled off from
-the others — a member of "Riverside" can never see "Hillcrest" data.
+the others — a member of "Riverside" can never see "Hillcrest" data — and gets its
+own page at `acepair.ir/<club>` (and, optionally, its own subdomain).
+
+---
+
+## Table of contents
+
+- [What it does](#what-it-does)
+- [Requirements coverage](#requirements-coverage)
+- [How it's built](#how-its-built)
+- [Run it locally](#run-it-locally)
+- [Points to confirm (answered)](#points-to-confirm-answered)
+- [Assumptions and limitations](#assumptions-and-limitations)
 
 ---
 
@@ -15,11 +31,16 @@ the others — a member of "Riverside" can never see "Hillcrest" data.
 | For members | For club admins |
 |---|---|
 | Discover open matches and available court slots | Register a club in one step |
-| Post a "looking for players" request and get auto-matched | Add / retire courts (tennis & padel) |
-| Join a game in one tap; the fee splits across players | Set pricing (base rate, peak multiplier) |
-| Book a specific court + time, safely | Choose how many players confirm a match |
-| Get live notifications when a match fills | Set the cancellation window & no-show policy |
-| See everything upcoming in "My games" | All of it is data-driven — no code changes per club |
+| Post a "looking for players" request and get auto-matched | Add / retire courts (tennis & padel), set a per-court rate |
+| Join a game in one tap; the fee splits across players | Set opening hours and per-sport slot lengths |
+| Book a specific court + time, safely | Set pricing (base rate, peak multiplier) and the peak windows |
+| Get live notifications when a match fills | Create recurring court holds (coaching, leagues, maintenance) |
+| See everything upcoming in "My games" | See the week's schedule and manage every booking |
+| Each club has its own page / subdomain | Browse the member directory |
+| | Choose match-confirm count, cancellation window & no-show policy |
+
+Everything on the admin side is **data-driven** — a club changes its own behaviour
+through configuration, with no code changes per club.
 
 The product is designed to *feel alive*: bookings confirm instantly, matches fill
 in real time, and notifications arrive over a live connection rather than a page
@@ -27,15 +48,31 @@ refresh.
 
 ---
 
-## How it's built (the 5-minute tour)
+## Requirements coverage
+
+How AcePair delivers each capability from the brief:
+
+| Requirement | How it's delivered |
+|---|---|
+| **Multi-tenancy** — any club operates its own independent space | One deployment; every row is scoped by `club_id`, and a member's login token carries their club, so cross-club access is *structurally* impossible (there's a test that actively tries to break in). Each club gets its own page `acepair.ir/<club>` and an optional subdomain. |
+| **Court setup** — sport, quantity, availability | Admins add/retire any number of tennis & padel courts (surface, indoor/outdoor, optional per-court rate) and set opening hours + slot lengths that drive availability. |
+| **Slot booking** | Members book a specific court and time; the database itself refuses two overlapping bookings on a court (a Postgres exclusion constraint), so double-booking cannot happen. |
+| **"Looking for players" requests** | Members post an open request (sport, skill, time window, duration) to be matched with others. |
+| **Automatic matchmaking** | Compatible requests are grouped the instant they're posted (plus a background sweeper as a safety net); at the club's minimum player count the game **auto-confirms** — creating the booking, the fee split, and notifications. |
+| **Fee splitting** | The court fee is split evenly among the confirmed players, recorded in an integer-cents ledger that reconciles to the penny; under-filled groups follow the club's chosen policy. |
+| **Per-club configuration** | Sports, courts, hours, slot lengths, fees, peak windows, players-to-confirm, skill tolerance, cancellation window, and unfilled-match policy are all per-club config — not hardcoded to any one setup. |
+
+---
+
+## How it's built
 
 ```mermaid
 flowchart LR
-    U[Member's browser] -->|HTTPS| W[Web app<br/>Next.js]
-    W -->|REST + WebSocket| A[API<br/>FastAPI]
-    A -->|SQL| D[(PostgreSQL)]
-    A -. background sweeper .-> A
-    subgraph One deployment, many clubs
+    U["Member / admin browser"] -->|HTTPS| W["Web app · Next.js"]
+    W -->|"REST + WebSocket"| A["API · FastAPI"]
+    A -->|SQL| D[("PostgreSQL")]
+    A -. "background sweeper" .-> A
+    subgraph platform["One deployment, many clubs"]
       A
       D
     end
@@ -55,8 +92,7 @@ Three pieces, all shipped together with Docker Compose:
   requests don't collide, the database itself refuses to store two overlapping
   bookings for the same court (a Postgres *exclusion constraint*). If two people
   tap "book" at the same instant, exactly one wins and the other gets a clean
-  "that slot was just taken" — never a silent double-booking. This is tested with
-  8 simultaneous requests.
+  "that slot was just taken" — never a silent double-booking.
 
 - **Matchmaking is instant, with a safety net.** When you post a request or join a
   game, AcePair tries to group and confirm you *right away*. A lightweight
@@ -70,8 +106,7 @@ Three pieces, all shipped together with Docker Compose:
 
 - **One login = one club.** A member's access token carries their club's identity.
   Every database query is filtered by it, so cross-club data leaks are structurally
-  impossible, not just discouraged. There's an automated test that actively tries to
-  break in and confirms it can't.
+  impossible, not just discouraged.
 
 - **Kept deliberately simple to deploy.** Postgres + the app, nothing else. Live
   notifications use an in-process channel rather than adding Redis; the code is
@@ -82,16 +117,28 @@ Three pieces, all shipped together with Docker Compose:
 
 ## Run it locally
 
-You need Docker. Set a couple of secrets first (nothing is hardcoded):
+You need Docker. Copy the example environment file and set a couple of secrets
+(nothing is hardcoded):
 
 ```bash
 cp .env.example .env    # then set POSTGRES_PASSWORD, JWT_SECRET, SEED_DEMO_PASSWORD
 docker compose up --build
 ```
 
-> For local access, temporarily add `ports: ["8000:8000"]` / `["3000:3000"]` to
-> the `api`/`web` services — the committed compose omits host ports because the
-> hosted deploy routes by domain via Traefik.
+The key settings in `.env` (all documented in `.env.example`):
+
+| Variable | What it's for |
+|---|---|
+| `POSTGRES_PASSWORD` | Database password (required) |
+| `JWT_SECRET` | Long random string that signs login tokens (required) |
+| `SEED_DEMO_PASSWORD` | Password for the seeded demo accounts |
+| `API_PUBLIC_URL` | The API's public URL, baked into the web build so the browser knows where to call (leave empty to run the web app on built-in demo data) |
+| `CORS_ORIGINS` | The web app's public origin(s) |
+| `ROOT_DOMAIN` | Domain clubs live under (e.g. `acepair.ir`) — enables club subdomains and their CORS |
+
+> The committed `docker-compose.yml` omits host ports (the hosted setup routes by
+> domain). For local access, temporarily add `ports: ["8000:8000"]` and
+> `["3000:3000"]` to the `api` / `web` services.
 
 Then (with ports mapped) open:
 
@@ -99,119 +146,14 @@ Then (with ports mapped) open:
 - **API docs** (interactive) → http://localhost:8000/docs
 - **API health** → http://localhost:8000/health
 
-The API seeds a **demo club** on first boot so nothing is empty:
+The API seeds a **demo club** (and a few more clubs for the showcase) on first
+boot, so nothing is ever empty:
 
 | Field | Value |
 |---|---|
 | Club address | `riverside` |
-| Email | `alex@riverside.club` |
+| Email | `alex@riverside.club` (admin) |
 | Password | your `SEED_DEMO_PASSWORD` |
-
-> By default the web app runs in **showcase mode** on built-in demo data so it
-> always looks alive. To wire it to the live API, set `API_PUBLIC_URL` (see
-> Deployment) and sign in with the demo account.
-
----
-
-## Run the tests
-
-The suite uses a **real** Postgres (via [testcontainers], spun up automatically) —
-not mocks — because the booking-conflict test has to exercise real database
-locking.
-
-```bash
-cd backend
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-pytest                     # needs Docker running (for the ephemeral Postgres)
-
-# Or point at your own Postgres and skip the container:
-TEST_DATABASE_URL=postgresql+asyncpg://user:pass@localhost:5432/acepair_test pytest
-```
-
-The fee-math and matchmaking-grouping tests are pure logic and need no database:
-
-```bash
-pytest tests/test_fee_split.py tests/test_matchmaking.py
-```
-
-**What's covered:** booking under concurrency (no double-booking), matchmaking
-grouping rules, fee-split math, tenant isolation (an active break-in attempt),
-plus end-to-end match confirmation and booking flows.
-
-[testcontainers]: https://testcontainers.com/
-
----
-
-## For the frontend team
-
-- **Base URL:** whatever you set as `NEXT_PUBLIC_API_URL` (e.g.
-  `https://api.acepair.app`). Leave it empty and the app happily runs on demo data.
-- **Auth flow:** `POST /v1/auth/login` (or `POST /v1/clubs` to onboard) returns an
-  `access_token`. Send it as `Authorization: Bearer <token>` on every call. The
-  token already encodes the club, so you never pass a club id around.
-- **Errors are structured** — always `{ "error": { "code", "message", "details" } }`,
-  with sensible HTTP status codes (409 for a taken slot, 404 for not-found, 401/403
-  for auth). No bare 500s with stack traces.
-- **Live updates:** connect a WebSocket to `/v1/ws/notifications?token=<token>` to
-  receive match fills, booking changes, and cancellations the instant they happen.
-
-Key endpoints (full interactive list at `/docs`):
-
-| Area | Endpoint |
-|---|---|
-| Onboard a club | `POST /v1/clubs` |
-| Log in | `POST /v1/auth/login` |
-| Discover matches | `GET /v1/matches?status=open` |
-| Post a request | `POST /v1/match-requests` |
-| Host / join / leave | `POST /v1/matches`, `/v1/matches/{id}/join`, `/leave` |
-| Availability | `GET /v1/availability` |
-| Book a court | `POST /v1/bookings` |
-| Fee ledger | `GET /v1/bookings/{id}/fees` |
-| My schedule | `GET /v1/me/games` |
-| Notifications | `GET /v1/notifications`, WS `/v1/ws/notifications` |
-| Admin: courts | `GET/POST/PATCH/DELETE /v1/courts` |
-| Admin: config | `GET/PATCH /v1/club/config` |
-
----
-
-## Deploy (Dokploy)
-
-The repo's `docker-compose.yml` builds all three services. No host ports are
-published — Traefik routes to the `web` (3000) and `api` (8000) containers by
-domain. In Dokploy:
-
-1. Point a domain at the **web** service and, since the browser calls the API
-   directly, a domain at the **api** service.
-2. Set these environment variables (see `.env.example`):
-
-   | Variable | What it's for |
-   |---|---|
-   | `POSTGRES_PASSWORD` | Database password (required) |
-   | `JWT_SECRET` | Long random string that signs login tokens (required) |
-   | `API_PUBLIC_URL` | The API's public URL, baked into the web build so the browser knows where to call |
-   | `CORS_ORIGINS` | The web app's public origin |
-   | `ROOT_DOMAIN` | Domain clubs live under (e.g. `acepair.ir`); enables club subdomains + their CORS |
-   | `SEED_DEMO_PASSWORD` | Password for the seeded demo login |
-
-3. Deploy. Confirm it's live at `<api-domain>/health` (should return
-   `{"status":"ok"}`).
-
-### Each club has its own page
-
-Every club is reachable two ways — no extra setup for the first:
-
-- **By path** (works immediately): `acepair.ir/riverside` shows the club's
-  join / sign-in landing page.
-- **By subdomain** (optional, per club): `riverside.acepair.ir`. To turn one on:
-  1. Add a DNS record for the subdomain pointing at the server (an `A` record to
-     the server IP, or a `CNAME` to the apex).
-  2. In Dokploy, add that subdomain as a domain on the **web** service. Traefik
-     routes it and Let's Encrypt issues the certificate automatically (HTTP-01).
-
-  No wildcard cert or DNS API token is needed for individual subdomains. The app
-  resolves the club from the hostname (`ROOT_DOMAIN`), and CORS already allows
-  the apex plus any `*.<ROOT_DOMAIN>` subdomain.
 
 ---
 
@@ -261,7 +203,9 @@ left their match, a match cancelled for not filling, booking confirmed, booking
 cancelled, and split invitations. The delivery channel is pluggable, so email
 or push can be swapped in later.
 
-## Assumptions & what's deferred
+---
+
+## Assumptions and limitations
 
 AcePair is a working, deployable product, but it makes some deliberate scope
 choices. For a real production launch, the notable assumptions and gaps are:
@@ -280,9 +224,9 @@ choices. For a real production launch, the notable assumptions and gaps are:
 - **No GDPR tooling** (data export/delete), audit log, or ToS/privacy flows.
 
 **Club operations (admin)**
-- The admin panel now covers courts, **opening hours & slot lengths**, a
-  **week schedule**, **recurring court holds**, **bookings management**, a
-  **member directory**, pricing, peak hours, and cancellation/unfilled rules.
+- The admin panel covers courts, **opening hours & slot lengths**, a **week
+  schedule**, **recurring court holds**, **bookings management**, a **member
+  directory**, pricing, peak hours, and cancellation/unfilled rules.
 - Still deferred: **per-court / per-day hours** and one-off **maintenance
   blackouts** (only club-wide hours + recurring holds today); **member invites,
   approvals, role changes, and removal** (the directory is read-only); and
@@ -294,9 +238,10 @@ choices. For a real production launch, the notable assumptions and gaps are:
   there is **no email / SMS / push** delivery, which a real club would expect.
 
 **Content, media & i18n**
-- **English / USD only** — no localization, currency formatting per region, or
-  RTL. A per-club `timezone` and `currency` are stored in config but not yet
-  surfaced or fully applied (peak pricing uses the booking's wall-clock).
+- **English / USD only** — no localization or currency formatting per region. A
+  per-club `timezone` and `currency` are stored in config but not yet fully
+  applied, so times display in the *viewer's* timezone and peak pricing uses the
+  booking's wall-clock.
 - **Images** are static assets in `/public` and set by URL; there's no upload
   pipeline or object-storage/CDN, and photography is illustrative/demo.
 - The **landing copy and marketing content** are demo-grade, not final.
