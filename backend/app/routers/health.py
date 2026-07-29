@@ -7,13 +7,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
 from ..deps import get_db
+from ..state import STARTUP
 
 router = APIRouter(tags=["health"])
 
 
 @router.get("/health", summary="Liveness probe")
 async def health() -> dict:
-    return {"status": "ok", "app": settings.app_name, "environment": settings.environment}
+    body = {
+        "status": "ok",
+        "app": settings.app_name,
+        "environment": settings.environment,
+        "db_ready": STARTUP["db_ready"],
+    }
+    if STARTUP["error"]:
+        body["startup_error"] = STARTUP["error"][:600]
+    return body
 
 
 @router.get("/v1/health", summary="Readiness probe (checks the database)")

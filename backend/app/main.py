@@ -17,6 +17,7 @@ from . import __version__
 from .config import settings
 from .database import init_models
 from .errors import AppError
+from .state import STARTUP
 from .routers import (
     auth,
     availability,
@@ -79,15 +80,27 @@ def _guard_jwt_secret() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     _guard_jwt_secret()
-    await init_models()
-    if settings.seed_demo_data:
+    # Initialise the schema. If it fails, don't crash-loop silently — start in a
+    # degraded mode and surface the exact reason via /health so it's debuggable.
+    try:
+        await init_models()
+        STARTUP["db_ready"] = True
+    except Exception as exc:
+        import traceback
+
+        STARTUP["error"] = f"{type(exc).__name__}: {exc}"
+        logger.error("init_models failed — starting degraded:\n%s", traceback.format_exc())
+
+    if STARTUP["db_ready"] and settings.seed_demo_data:
         try:
             from .seed import seed_demo
 
             await seed_demo()
         except Exception:  # pragma: no cover - seeding is best-effort
             logger.exception("demo seeding failed (continuing)")
-    sweeper.start()
+
+    if STARTUP["db_ready"]:
+        sweeper.start()
     try:
         yield
     finally:

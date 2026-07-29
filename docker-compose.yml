@@ -19,7 +19,9 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in your env}
       POSTGRES_DB: acepair
     volumes:
-      - acepair_db:/var/lib/postgresql/data
+      # Fresh volume name forces a clean init under the current POSTGRES_PASSWORD
+      # (Postgres ignores password changes on an already-initialised volume).
+      - acepair_pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U acepair -d acepair"]
       interval: 5s
@@ -56,4 +58,4 @@ services:
     restart: unless-stopped
 
 volumes:
-  acepair_db:
+  acepair_pgdata:
