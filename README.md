@@ -191,10 +191,27 @@ domain. In Dokploy:
    | `JWT_SECRET` | Long random string that signs login tokens (required) |
    | `API_PUBLIC_URL` | The API's public URL, baked into the web build so the browser knows where to call |
    | `CORS_ORIGINS` | The web app's public origin |
+   | `ROOT_DOMAIN` | Domain clubs live under (e.g. `acepair.ir`); enables club subdomains + their CORS |
    | `SEED_DEMO_PASSWORD` | Password for the seeded demo login |
 
 3. Deploy. Confirm it's live at `<api-domain>/health` (should return
    `{"status":"ok"}`).
+
+### Each club has its own page
+
+Every club is reachable two ways — no extra setup for the first:
+
+- **By path** (works immediately): `acepair.ir/riverside` shows the club's
+  join / sign-in landing page.
+- **By subdomain** (optional, per club): `riverside.acepair.ir`. To turn one on:
+  1. Add a DNS record for the subdomain pointing at the server (an `A` record to
+     the server IP, or a `CNAME` to the apex).
+  2. In Dokploy, add that subdomain as a domain on the **web** service. Traefik
+     routes it and Let's Encrypt issues the certificate automatically (HTTP-01).
+
+  No wildcard cert or DNS API token is needed for individual subdomains. The app
+  resolves the club from the hostname (`ROOT_DOMAIN`), and CORS already allows
+  the apex plus any `*.<ROOT_DOMAIN>` subdomain.
 
 ---
 

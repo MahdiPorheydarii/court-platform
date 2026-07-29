@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Logo } from '@/components/logo'
 import { api, ApiError } from '@/lib/api'
 import { API_ENABLED } from '@/lib/config'
+import { clubSlugFromHost } from '@/lib/club-host'
 import { useSession } from '@/lib/session'
 import { cn } from '@/lib/utils'
 
@@ -35,9 +36,10 @@ export default function LoginPage() {
   const [clubName, setClubName] = useState('')
   const [adminName, setAdminName] = useState('')
 
-  // Prefill the club handle when arriving from a club page (/login?club=riverside).
+  // Prefill the club handle from the ?club= param (arriving from a club page)
+  // or from a club subdomain (riverside.acepair.ir).
   useEffect(() => {
-    const club = new URLSearchParams(window.location.search).get('club')
+    const club = new URLSearchParams(window.location.search).get('club') || clubSlugFromHost()
     if (club) setSlug(club)
   }, [])
 

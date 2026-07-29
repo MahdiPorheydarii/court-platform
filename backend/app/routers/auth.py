@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..deps import AuthContext, get_auth_context, get_club_by_slug, get_db
-from ..errors import AuthError, ConflictError, NotFoundError
+from ..errors import AuthError, ConflictError, NotFoundError, ValidationError
 from ..models import Club, Member, Role
 from ..schemas import (
     ClubOut,
@@ -19,6 +19,13 @@ from ..schemas import (
 )
 
 _VALID_LEVELS = {"Beginner", "Improver", "Intermediate", "Advanced"}
+# Slugs that would collide with platform subdomains (riverside.acepair.ir style)
+# or common infra hostnames, so clubs can never claim them.
+_RESERVED_SLUGS = {
+    "www", "api", "app", "admin", "mail", "ftp", "smtp", "ns", "ns1", "ns2",
+    "dashboard", "dokploy", "static", "assets", "cdn", "status", "help",
+    "support", "blog", "docs", "acepair",
+}
 from ..security import create_access_token, hash_password, verify_password
 
 router = APIRouter(prefix="/v1", tags=["auth"])
@@ -61,6 +68,8 @@ def _token_response(member: Member, club: Club) -> TokenResponse:
 async def register_club(
     payload: ClubRegister, session: AsyncSession = Depends(get_db)
 ) -> TokenResponse:
+    if payload.slug.lower() in _RESERVED_SLUGS:
+        raise ValidationError("That club address is reserved. Please choose another.")
     existing = await get_club_by_slug(session, payload.slug)
     if existing is not None:
         raise ConflictError("That club address (slug) is already taken.")

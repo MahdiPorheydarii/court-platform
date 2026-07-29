@@ -35,6 +35,8 @@ services:
       DATABASE_URL: postgresql+asyncpg://acepair:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in your env}@db:5432/acepair
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in your env}
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
+      # Apex + every club subdomain of this domain are allowed by CORS.
+      ROOT_DOMAIN: ${ROOT_DOMAIN:-acepair.ir}
       SEED_DEMO_DATA: "true"
       SEED_DEMO_PASSWORD: ${SEED_DEMO_PASSWORD:-}
       ENVIRONMENT: production
@@ -51,6 +53,10 @@ services:
       args:
         NEXT_PUBLIC_API_URL: ${API_PUBLIC_URL:-}
         NEXT_PUBLIC_DEMO_PASSWORD: ${SEED_DEMO_PASSWORD:-}
+        NEXT_PUBLIC_ROOT_DOMAIN: ${ROOT_DOMAIN:-acepair.ir}
+    environment:
+      # Read at runtime by middleware.ts for club-subdomain rewriting.
+      NEXT_PUBLIC_ROOT_DOMAIN: ${ROOT_DOMAIN:-acepair.ir}
     depends_on:
       - api
     expose:

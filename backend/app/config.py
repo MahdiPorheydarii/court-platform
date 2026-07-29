@@ -5,8 +5,9 @@ rest of the code never reads ``os.environ`` directly.
 """
 from __future__ import annotations
 
+import re
 from functools import lru_cache
-from typing import List
+from typing import List, Optional
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -32,9 +33,18 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_ttl_minutes: int = 60 * 24 * 7  # one week
 
+    # --- Platform domain ---
+    # The domain clubs live under. Club subdomains (riverside.acepair.ir) are
+    # served off this root; it also seeds the CORS subdomain rule below.
+    root_domain: str = "acepair.ir"
+
     # --- CORS ---
     # Comma-separated list of allowed origins for the browser frontend.
     cors_origins: str = "*"
+    # A regex of extra allowed origins. When left empty it is derived from
+    # ``root_domain`` so the apex and any club subdomain (https://<club>.<root>)
+    # are permitted without listing each one. Set explicitly to override.
+    cors_origin_regex: str = ""
 
     # --- Background matchmaking sweeper ---
     matchmaking_sweep_seconds: int = 20
@@ -56,6 +66,21 @@ class Settings(BaseSettings):
         if raw in ("", "*"):
             return ["*"]
         return [o.strip() for o in raw.split(",") if o.strip()]
+
+    @property
+    def cors_origin_regex_value(self) -> Optional[str]:
+        """Regex matching the apex and any subdomain of ``root_domain`` (https).
+
+        Uses ``fullmatch`` in Starlette, so it never matches look-alike domains
+        such as ``https://evil-acepair.ir`` — only ``acepair.ir`` and true
+        ``*.acepair.ir`` subdomains.
+        """
+        if self.cors_origin_regex.strip():
+            return self.cors_origin_regex.strip()
+        root = self.root_domain.strip()
+        if not root:
+            return None
+        return rf"https?://([a-z0-9-]+\.)*{re.escape(root)}"
 
 
 @lru_cache
