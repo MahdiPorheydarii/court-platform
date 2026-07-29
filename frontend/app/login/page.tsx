@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowRight, KeyRound, Loader2, Sparkles } from 'lucide-react'
@@ -34,6 +34,12 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [clubName, setClubName] = useState('')
   const [adminName, setAdminName] = useState('')
+
+  // Prefill the club handle when arriving from a club page (/login?club=riverside).
+  useEffect(() => {
+    const club = new URLSearchParams(window.location.search).get('club')
+    if (club) setSlug(club)
+  }, [])
 
   async function signIn(creds: { slug: string; email: string; password: string }) {
     setPending(true)

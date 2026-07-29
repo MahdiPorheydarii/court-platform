@@ -170,6 +170,20 @@ export const api = {
     admin_email: string
     admin_password: string
   }) => request<TokenResponse>('/v1/clubs', { method: 'POST', auth: false, body: payload }),
+  registerMember: (
+    slug: string,
+    payload: { name: string; email: string; password: string; skill_level?: string },
+  ) =>
+    request<TokenResponse>(`/v1/auth/register?slug=${encodeURIComponent(slug)}`, {
+      method: 'POST',
+      auth: false,
+      body: payload,
+    }),
+  publicClub: (slug: string) =>
+    request<{ name: string; slug: string; sports: string[]; courts: number; open_matches: number }>(
+      `/v1/public/clubs/${slug}`,
+      { auth: false },
+    ),
   me: (token?: string) =>
     request<{ member: ApiMember; club: ApiClub }>('/v1/auth/me', { token }),
   updateMe: (payload: { name?: string; skill_level?: string }) =>
