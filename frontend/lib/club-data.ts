@@ -21,6 +21,8 @@ export type OpenMatch = {
   level: Level
   pricePerPerson: number
   spotsTotal: number
+  minPlayers?: number
+  status?: string
   players: Player[]
   host: string
 }

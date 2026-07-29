@@ -3,6 +3,7 @@ import { Geist } from 'next/font/google'
 import { Fraunces } from 'next/font/google'
 import './globals.css'
 import { SessionProvider } from '@/lib/session'
+import { RealtimeProvider } from '@/lib/realtime'
 
 const geistSans = Geist({
   subsets: ['latin'],
@@ -35,7 +36,9 @@ export default function RootLayout({
   return (
     <html lang="en" className={`light ${geistSans.variable} ${fraunces.variable}`}>
       <body className="bg-background font-sans antialiased">
-        <SessionProvider>{children}</SessionProvider>
+        <SessionProvider>
+          <RealtimeProvider>{children}</RealtimeProvider>
+        </SessionProvider>
       </body>
     </html>
   )

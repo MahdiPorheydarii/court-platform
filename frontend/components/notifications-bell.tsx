@@ -5,6 +5,7 @@ import { Bell, BellRing, Check } from 'lucide-react'
 import { Popover } from '@/components/popover'
 import { api, type ApiNotification } from '@/lib/api'
 import { API_ENABLED } from '@/lib/config'
+import { useRealtime } from '@/lib/realtime'
 import { useSession } from '@/lib/session'
 import { cn } from '@/lib/utils'
 
@@ -20,6 +21,7 @@ function timeAgo(iso: string): string {
 
 export function NotificationsBell() {
   const { authed } = useSession()
+  const { subscribe } = useRealtime()
   const live = authed && API_ENABLED
   const [items, setItems] = useState<ApiNotification[]>([])
   const [unread, setUnread] = useState(0)
@@ -38,9 +40,33 @@ export function NotificationsBell() {
   useEffect(() => {
     if (!live) return
     load()
-    const id = setInterval(load, 15_000)
+    // WebSocket is the live path; a slow poll is just a safety net.
+    const id = setInterval(load, 60_000)
     return () => clearInterval(id)
   }, [live, load])
+
+  // Live: prepend notifications pushed over the socket the instant they happen.
+  useEffect(() => {
+    if (!live) return
+    return subscribe((e) => {
+      if (e.kind !== 'notification') return
+      setItems((prev) =>
+        [
+          {
+            id: String(e.id),
+            type: String(e.type),
+            title: String(e.title),
+            body: String(e.body ?? ''),
+            data: (e.data as Record<string, unknown>) ?? {},
+            read_at: null,
+            created_at: String(e.created_at ?? new Date().toISOString()),
+          },
+          ...prev,
+        ].slice(0, 50),
+      )
+      setUnread((u) => u + 1)
+    })
+  }, [live, subscribe])
 
   const markRead = useCallback(async () => {
     if (!live || unread === 0) return

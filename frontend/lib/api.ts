@@ -183,6 +183,7 @@ export const api = {
       `/v1/matches?status=${status}${sport ? `&sport=${sport}` : ''}`,
     ),
   getMatch: (id: string) => request<ApiMatch>(`/v1/matches/${id}`),
+  publicMatch: (id: string) => request<ApiMatch>(`/v1/public/matches/${id}`, { auth: false }),
   joinMatch: (id: string) => request<ApiMatch>(`/v1/matches/${id}/join`, { method: 'POST' }),
   leaveMatch: (id: string) => request<unknown>(`/v1/matches/${id}/leave`, { method: 'POST' }),
   hostMatch: (payload: {
@@ -256,6 +257,8 @@ export function matchToOpenMatch(m: ApiMatch): OpenMatch {
     level: (m.skill_level as Level) ?? 'Intermediate',
     pricePerPerson: m.price_per_person ?? 0,
     spotsTotal: m.spots_total,
+    minPlayers: m.min_players,
+    status: m.status,
     players: m.players.map(toPlayer),
     host: m.host_name?.split(' ')[0] ?? '',
   }

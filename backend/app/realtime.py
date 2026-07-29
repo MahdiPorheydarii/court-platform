@@ -51,5 +51,30 @@ class NotificationHub:
             except Exception:  # pragma: no cover - socket died mid-send
                 await self.disconnect(ws, club_id, member_id)
 
+    async def broadcast_club(self, club_id: str, payload: Dict[str, Any]) -> None:
+        """Best-effort push to every connected member of a club — used for live
+        match-fill updates so anyone viewing the feed sees a match fill in
+        real time."""
+        members = self._conns.get(club_id, {})
+        for member_id, sockets in list(members.items()):
+            for ws in list(sockets):
+                try:
+                    await ws.send_json(payload)
+                except Exception:  # pragma: no cover
+                    await self.disconnect(ws, club_id, member_id)
+
 
 hub = NotificationHub()
+
+
+def match_update_payload(
+    match_id: str, spots_filled: int, spots_total: int, min_players: int, status: str
+) -> Dict[str, Any]:
+    return {
+        "kind": "match_update",
+        "match_id": match_id,
+        "spots_filled": spots_filled,
+        "spots_total": spots_total,
+        "min_players": min_players,
+        "status": status,
+    }

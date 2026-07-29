@@ -12,6 +12,7 @@ from sqlalchemy.orm import selectinload
 from ..deps import AuthContext, get_auth_context, get_db
 from ..errors import NotFoundError
 from ..models import Match, MatchParticipant, MatchRequest, MatchStatus
+from ..realtime import hub, match_update_payload
 from ..schemas import (
     HostMatchCreate,
     MatchOut,
@@ -23,6 +24,17 @@ from ..services import matchmaking
 from ..services.serializers import serialize_match
 
 router = APIRouter(prefix="/v1", tags=["matchmaking"])
+
+
+async def _broadcast(club_id, m: MatchOut) -> None:
+    """Push a live match-fill update to everyone in the club."""
+    try:
+        await hub.broadcast_club(
+            str(club_id),
+            match_update_payload(str(m.id), m.spots_filled, m.spots_total, m.min_players, m.status),
+        )
+    except Exception:  # pragma: no cover - realtime is best-effort
+        pass
 
 
 async def _load_match(
@@ -72,6 +84,8 @@ async def create_match_request(
     )
     await session.commit()
     match_out = await serialize_match(session, match) if match is not None else None
+    if match_out is not None:
+        await _broadcast(ctx.club.id, match_out)
     return MatchRequestResult(
         request=MatchRequestOut.model_validate(req),
         match=match_out,
@@ -102,7 +116,9 @@ async def host_match(
         title=payload.title,
     )
     await session.commit()
-    return await serialize_match(session, match)
+    mo = await serialize_match(session, match)
+    await _broadcast(ctx.club.id, mo)
+    return mo
 
 
 @router.get("/matches", response_model=List[MatchOut], summary="Discover matches")
@@ -152,7 +168,9 @@ async def join_match(
     match = await _load_match(session, ctx.club.id, match_id, for_update=True)
     match = await matchmaking.join_match(session, club=ctx.club, match=match, member=ctx.member)
     await session.commit()
-    return await serialize_match(session, match)
+    mo = await serialize_match(session, match)
+    await _broadcast(ctx.club.id, mo)
+    return mo
 
 
 @router.post("/matches/{match_id}/leave", summary="Leave a match")
@@ -164,6 +182,7 @@ async def leave_match(
     match = await _load_match(session, ctx.club.id, match_id, for_update=True)
     result = await matchmaking.leave_match(session, club=ctx.club, match=match, member=ctx.member)
     await session.commit()
+    await _broadcast(ctx.club.id, await serialize_match(session, match))
     return result
 
 
@@ -185,3 +204,24 @@ async def my_requests(
         .order_by(MatchRequest.created_at.desc())
     )
     return [MatchRequestOut.model_validate(r) for r in rows.scalars().all()]
+
+
+@router.get(
+    "/public/matches/{match_id}",
+    response_model=MatchOut,
+    tags=["public"],
+    summary="Public match view for share links (no auth)",
+)
+async def public_match(
+    match_id: uuid.UUID, session: AsyncSession = Depends(get_db)
+) -> MatchOut:
+    """Read a single match without authentication so a shared link renders for
+    anyone. Only presentational fields are returned (see MatchOut) — enough for
+    the poster and the invite-to-fill flow; joining still requires signing in."""
+    row = await session.execute(
+        select(Match).options(selectinload(Match.participants)).where(Match.id == match_id)
+    )
+    match = row.scalars().first()
+    if match is None:
+        raise NotFoundError("Match not found.")
+    return await serialize_match(session, match)

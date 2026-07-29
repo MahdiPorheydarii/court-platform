@@ -2,11 +2,13 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Check, Clock, MapPin, Loader2 } from 'lucide-react'
+import { Check, Clock, MapPin, Loader2, Share2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AvatarStack } from '@/components/avatar-stack'
+import { MatchFillRing } from '@/components/match-fill-ring'
 import { api, ApiError } from '@/lib/api'
 import { API_ENABLED } from '@/lib/config'
+import { useMatchLive } from '@/lib/realtime'
 import { useSession } from '@/lib/session'
 import { cn } from '@/lib/utils'
 import { levelTone, type OpenMatch, type Player } from '@/lib/club-data'
@@ -33,26 +35,40 @@ export function MatchCard({ match }: { match: OpenMatch }) {
   const [joined, setJoined] = useState(false)
   const [players, setPlayers] = useState(match.players)
   const [error, setError] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
   const [pending, startTransition] = useTransition()
 
-  const spotsLeft = match.spotsTotal - players.length
   const isLive = API_ENABLED && match.id.includes('-') && match.id.length >= 32
+  const { filled, status, justConfirmed, optimisticJoin } = useMatchLive(
+    match.id,
+    match.players.length,
+    match.spotsTotal,
+  )
+  const confirmed = status === 'confirmed' || match.status === 'confirmed'
+  const spotsLeft = Math.max(0, match.spotsTotal - filled)
+
+  const fillLabel = confirmed
+    ? 'Locked in — court booked'
+    : spotsLeft === 0
+      ? 'Match is full'
+      : spotsLeft === 1
+        ? 'One more to lock it in!'
+        : `${spotsLeft} spots to lock it in`
 
   function handleJoin() {
-    if (joined || spotsLeft <= 0) return
-    // Logged-out visitors (e.g. on the landing preview) are sent to sign in.
+    if (joined || spotsLeft <= 0 || confirmed) return
     if (API_ENABLED && !authed) {
       router.push('/login')
       return
     }
     setError(null)
-    // Optimistic: reflect the join immediately.
     setJoined(true)
     setPlayers((prev) => [...prev, you])
+    optimisticJoin()
 
     startTransition(async () => {
       if (!isLive) {
-        await new Promise((r) => setTimeout(r, 600)) // demo mode
+        await new Promise((r) => setTimeout(r, 600))
         return
       }
       try {
@@ -60,34 +76,40 @@ export function MatchCard({ match }: { match: OpenMatch }) {
       } catch (e) {
         setJoined(false)
         setPlayers(match.players)
-        setError(
-          e instanceof ApiError ? e.message : 'Could not join — that spot was just taken.',
-        )
+        setError(e instanceof ApiError ? e.message : 'Could not join — that spot was just taken.')
       }
     })
   }
 
-  const currentSpotsLeft = joined
-    ? match.spotsTotal - players.length
-    : spotsLeft
+  async function share() {
+    const url = `${window.location.origin}/m/${match.id}`
+    const data = {
+      title: match.title,
+      text: `${match.title} — ${match.day} ${match.time}. ${spotsLeft} spot${spotsLeft === 1 ? '' : 's'} left on AcePair.`,
+      url,
+    }
+    try {
+      if (navigator.share) await navigator.share(data)
+      else {
+        await navigator.clipboard.writeText(url)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 1800)
+      }
+    } catch {
+      /* user dismissed the share sheet */
+    }
+  }
 
   return (
-    <article className="group flex flex-col rounded-2xl border border-border bg-card p-5 transition-shadow hover:shadow-lg hover:shadow-primary/5">
+    <article className="group relative flex flex-col overflow-hidden rounded-2xl border border-border bg-card p-5 transition-shadow hover:shadow-lg hover:shadow-primary/5">
       <div className="flex items-center justify-between">
         <SportBadge sport={match.sport} />
-        <span
-          className={cn(
-            'rounded-full px-2.5 py-0.5 text-xs font-medium',
-            levelTone(match.level),
-          )}
-        >
+        <span className={cn('rounded-full px-2.5 py-0.5 text-xs font-medium', levelTone(match.level))}>
           {match.level}
         </span>
       </div>
 
-      <h3 className="mt-3 font-serif text-xl font-semibold tracking-tight">
-        {match.title}
-      </h3>
+      <h3 className="mt-3 font-serif text-xl font-semibold tracking-tight">{match.title}</h3>
 
       <div className="mt-2 flex flex-col gap-1 text-sm text-muted-foreground">
         <span className="flex items-center gap-1.5">
@@ -100,54 +122,65 @@ export function MatchCard({ match }: { match: OpenMatch }) {
         </span>
       </div>
 
+      {/* Live fill meter — sweeps as players join over the socket */}
       <div className="mt-4 flex items-center gap-3">
-        <AvatarStack
-          players={players}
-          emptySpots={Math.max(currentSpotsLeft, 0)}
-          size="sm"
-        />
-        <span className="text-xs text-muted-foreground">
-          {currentSpotsLeft > 0 ? (
-            <>
-              <span className="font-semibold text-foreground">
-                {players.length} joined
-              </span>{' '}
-              · {currentSpotsLeft} spot{currentSpotsLeft > 1 ? 's' : ''} left
-            </>
-          ) : (
-            <span className="font-semibold text-accent">Match is full</span>
-          )}
-        </span>
+        <MatchFillRing filled={filled} total={match.spotsTotal} confirmed={confirmed} justConfirmed={justConfirmed} />
+        <div className="min-w-0">
+          <AvatarStack players={players} emptySpots={Math.max(spotsLeft, 0)} size="sm" />
+          <p
+            className={cn(
+              'mt-1.5 text-xs font-medium',
+              confirmed ? 'text-accent' : spotsLeft === 1 ? 'text-primary' : 'text-muted-foreground',
+            )}
+          >
+            {fillLabel}
+          </p>
+        </div>
       </div>
 
       <div className="mt-5 flex items-center justify-between border-t border-border pt-4">
         <div>
-          <p className="font-serif text-lg font-semibold">
-            ${match.pricePerPerson}
-          </p>
+          <p className="font-serif text-lg font-semibold">${match.pricePerPerson}</p>
           <p className="text-xs text-muted-foreground">per person · split</p>
         </div>
 
         <Button
           onClick={handleJoin}
-          disabled={joined || currentSpotsLeft <= 0}
+          disabled={joined || spotsLeft <= 0 || confirmed}
           data-icon="inline-start"
-          className={cn(
-            'h-10 rounded-full px-5',
-            joined && 'bg-accent text-accent-foreground',
-          )}
+          className={cn('h-10 rounded-full px-5', (joined || confirmed) && 'bg-accent text-accent-foreground')}
         >
-          {pending ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : joined ? (
-            <Check className="size-4" />
-          ) : null}
-          {joined ? "You're in" : 'Join match'}
+          {pending ? <Loader2 className="size-4 animate-spin" /> : joined ? <Check className="size-4" /> : null}
+          {confirmed ? 'Confirmed' : joined ? "You're in" : 'Join match'}
         </Button>
       </div>
 
-      {error ? (
-        <p className="mt-3 text-xs font-medium text-destructive">{error}</p>
+      {error ? <p className="mt-3 text-xs font-medium text-destructive">{error}</p> : null}
+
+      {/* Share (live matches only) */}
+      {isLive ? (
+        <button
+          type="button"
+          onClick={share}
+          aria-label="Share match"
+          className="absolute right-4 top-4 flex size-8 items-center justify-center rounded-full bg-card/80 text-muted-foreground opacity-0 backdrop-blur transition hover:text-foreground group-hover:opacity-100 max-sm:opacity-100"
+        >
+          {copied ? <Check className="size-4 text-accent" /> : <Share2 className="size-4" />}
+        </button>
+      ) : null}
+
+      {/* Celebratory reveal when the match locks in */}
+      {justConfirmed ? (
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 rounded-2xl bg-card/95 text-center backdrop-blur-sm animate-in fade-in zoom-in-95">
+          <div className="relative flex size-14 items-center justify-center">
+            <span className="absolute inset-0 rounded-full bg-accent/25 animate-ping" />
+            <span className="relative flex size-14 items-center justify-center rounded-full bg-accent text-accent-foreground">
+              <Check className="size-7" strokeWidth={2.6} />
+            </span>
+          </div>
+          <p className="font-serif text-lg font-semibold">Match locked in!</p>
+          <p className="text-xs text-muted-foreground">Court booked · fee split evenly</p>
+        </div>
       ) : null}
     </article>
   )
