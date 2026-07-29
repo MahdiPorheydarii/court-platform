@@ -9,18 +9,16 @@ courts without ever double-booking, and split the court fee automatically. Club
 admins define their courts, hours, pricing, and matchmaking rules — all driven by
 configuration, never code.
 
-One deployed app serves *every* club (multi-tenant). Each club is walled off from
-the others — a member of "Riverside" can never see "Hillcrest" data — and gets its
-own page at `acepair.ir/<club>` (and, optionally, its own subdomain).
-
-![AcePair — the platform landing page](docs/screenshots/landing.jpg)
+One deployed app serves *every* club (multi-tenant): each club operates its own
+independent space, walled off from the others — a member of "Riverside" can never
+see "Hillcrest" data. Every club gets its own home on a subdomain — e.g.
+`riverside.acepair.ir` — with `acepair.ir/riverside` as an alias.
 
 ---
 
 ## Table of contents
 
 - [What it does](#what-it-does)
-- [Screenshots](#screenshots)
 - [Requirements coverage](#requirements-coverage)
 - [How it's built](#how-its-built)
 - [Run it locally](#run-it-locally)
@@ -51,22 +49,6 @@ refresh.
 
 ---
 
-## Screenshots
-
-**The apex is a multi-club directory — each club opens its own page/subdomain**
-
-![Clubs on AcePair](docs/screenshots/clubs.jpg)
-
-**Members find and join open games — auto-matched by skill & time, fee split**
-
-![Discover open matches](docs/screenshots/discover.jpg)
-
-**Admins manage courts, opening hours, the week's schedule, and recurring holds**
-
-![Admin schedule](docs/screenshots/admin-schedule.jpg)
-
----
-
 ## Requirements coverage
 
 How AcePair delivers each capability from the brief:
@@ -85,25 +67,48 @@ How AcePair delivers each capability from the brief:
 
 ## How it's built
 
+Three pieces shipped together with Docker Compose — one shared deployment that
+every club is a tenant of:
+
 ```mermaid
 flowchart LR
-    U["Member / admin browser"] -->|HTTPS| W["Web app · Next.js"]
-    W -->|"REST + WebSocket"| A["API · FastAPI"]
-    A -->|SQL| D[("PostgreSQL")]
-    A -. "background sweeper" .-> A
-    subgraph platform["One deployment, many clubs"]
-      A
-      D
+    subgraph clubs["Every club — its own subdomain"]
+      R["riverside.acepair.ir"]
+      S["sundown.acepair.ir"]
+      H["hillcrest.acepair.ir"]
+    end
+    R --> W
+    S --> W
+    H --> W
+    subgraph deploy["One shared deployment"]
+      W["Web · Next.js"] -->|"REST + WebSocket"| A["API · FastAPI"]
+      A -->|"SQL — every query scoped by club_id"| D[("PostgreSQL")]
+      A -. "matchmaking sweeper" .-> A
     end
 ```
-
-Three pieces, all shipped together with Docker Compose:
 
 1. **Web app** (`/frontend`) — a Next.js site. The visual layer members and admins
    use. Talks to the API over HTTPS.
 2. **API** (`/backend`) — a FastAPI service. All the rules live here: booking,
    matchmaking, fees, notifications, tenant isolation.
 3. **Database** — PostgreSQL. The single source of truth.
+
+Every club is a **tenant** of that one deployment: it reaches the app on its own
+subdomain (resolved from the hostname), and every database query is scoped to its
+`club_id` — so clubs are isolated by construction, not by convention.
+
+### How a game comes together
+
+```mermaid
+flowchart TD
+    P["Member posts a 'looking for players' request"] --> G{"Enough compatible<br/>players to group?"}
+    G -->|"not yet"| Q["Wait; a background sweeper keeps trying"]
+    Q --> G
+    G -->|"reached the club's minimum"| C["Match auto-confirms"]
+    C --> B["Book the court<br/>(double-booking impossible)"]
+    C --> F["Split the fee<br/>(auditable cents ledger)"]
+    C --> N["Notify everyone<br/>(live over WebSocket)"]
+```
 
 ### Five decisions worth knowing about
 
