@@ -89,7 +89,7 @@ _EXTRA_CLUBS = [
     {
         "name": "Vantage Padel Club", "slug": "vantage", "sports": ["padel"],
         "location": "Dubai", "tagline": "Rooftop panoramic padel, floodlit after dark.",
-        "cover_image": "/images/hero-court.jpg",
+        "cover_image": "/images/court-night.jpg",
         "courts": [("Sky 1", "padel"), ("Sky 2", "padel"), ("Sky 3", "padel"), ("Sky 4", "padel")],
         "members": [("Omar Haddad", "Advanced"), ("Lena Fischer", "Intermediate"), ("Priyanka Rao", "Improver")],
         "matches": [

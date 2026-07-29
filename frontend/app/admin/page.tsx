@@ -15,10 +15,12 @@ import {
   Users2,
   Zap,
 } from 'lucide-react'
+import { ExternalLink } from 'lucide-react'
 import { AppHeader } from '@/components/app-header'
 import { Button } from '@/components/ui/button'
 import { api, ApiError, type ApiCourt, type ApiMatch } from '@/lib/api'
 import { API_ENABLED } from '@/lib/config'
+import { clubSlugFromHost } from '@/lib/club-host'
 import { useRequireAuth } from '@/lib/hooks'
 import { cn } from '@/lib/utils'
 
@@ -27,6 +29,22 @@ type Section = 'courts' | 'pricing'
 export default function AdminPage() {
   const { authed, member, club, loading } = useRequireAuth()
   const [section, setSection] = useState<Section>('courts')
+
+  // The club's real public address, resolved from the current host so it
+  // matches wherever the admin actually is: on a club subdomain it reads
+  // "riverside.acepair.ir"; on the apex it reads "acepair.ir/riverside".
+  // Computed client-side (post-mount) to avoid an SSR/hydration mismatch.
+  const [publicUrl, setPublicUrl] = useState<{ label: string; href: string } | null>(null)
+  useEffect(() => {
+    if (!club?.slug) return
+    const host = window.location.host
+    const onSubdomain = clubSlugFromHost(window.location.hostname) === club.slug
+    setPublicUrl(
+      onSubdomain
+        ? { label: host, href: '/' }
+        : { label: `${host}/${club.slug}`, href: `/${club.slug}` },
+    )
+  }, [club?.slug])
 
   const gated =
     !API_ENABLED ? (
@@ -62,10 +80,17 @@ export default function AdminPage() {
               </h1>
             </div>
           </div>
-          {club?.slug ? (
-            <span className="w-fit rounded-full border border-border bg-card px-3 py-1 text-sm text-muted-foreground">
-              acepair.ir/<span className="font-medium text-foreground">{club.slug}</span>
-            </span>
+          {publicUrl ? (
+            <a
+              href={publicUrl.href}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex w-fit items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+              title="View your club's public page"
+            >
+              <span className="font-medium text-foreground">{publicUrl.label}</span>
+              <ExternalLink className="size-3.5" />
+            </a>
           ) : null}
         </div>
 
