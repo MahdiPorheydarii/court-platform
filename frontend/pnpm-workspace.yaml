@@ -1,0 +1,8 @@
+# pnpm v11 build-script approvals. These optional native/build scripts are
+# intentionally skipped: images are served unoptimized (no sharp needed), and
+# msw is an unused transitive dev dependency.
+allowBuilds:
+  msw: false
+  sharp: false
+overrides:
+  hono: 4.12.25

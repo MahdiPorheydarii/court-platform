@@ -1,0 +1,58 @@
+# AcePair — full stack: Postgres + FastAPI API + Next.js web.
+#
+# Dokploy notes
+# -------------
+# * Point a domain at the `web` service (port 3000) and, if the browser calls
+#   the API directly, a domain at `api` (port 8000).
+# * Set these env vars in Dokploy (or a .env next to this file):
+#     JWT_SECRET       – long random string used to sign tokens
+#     POSTGRES_PASSWORD– database password
+#     API_PUBLIC_URL   – the API's public URL (baked into the web build so the
+#                        browser knows where to call, e.g. https://api.acepair.app)
+#     CORS_ORIGINS     – the web app's public origin (e.g. https://acepair.app)
+#   Leaving API_PUBLIC_URL empty ships the web app in showcase (demo-data) mode.
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: acepair
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-acepair}
+      POSTGRES_DB: acepair
+    volumes:
+      - acepair_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U acepair -d acepair"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  api:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+asyncpg://acepair:${POSTGRES_PASSWORD:-acepair}@db:5432/acepair
+      JWT_SECRET: ${JWT_SECRET:-please-change-me}
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+      SEED_DEMO_DATA: "true"
+      ENVIRONMENT: production
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: ${API_PUBLIC_URL:-}
+    depends_on:
+      - api
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+volumes:
+  acepair_db:

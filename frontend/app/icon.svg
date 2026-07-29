@@ -1,0 +1,8 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="32" height="32" rx="8" fill="#f4ede0"/>
+  <!-- Two "paired" players / balls overlapping — the AcePair mark -->
+  <circle cx="12.5" cy="16" r="7" fill="#b0562f"/>
+  <circle cx="19.5" cy="16" r="7" fill="#7f9160" fill-opacity="0.92"/>
+  <!-- ball seam on the overlap keeps it reading as sport, not just a venn -->
+  <path d="M16 9.6 C 17.7 12, 17.7 20, 16 22.4" stroke="#f4ede0" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+</svg>
