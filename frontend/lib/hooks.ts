@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   api,
   gameToUpcoming,
@@ -19,47 +20,79 @@ import {
 import { useSession } from './session'
 
 /**
- * Discover feed data. Falls back to the built-in demo world so the page always
- * looks alive; hydrates with live matches + open court slots when signed in.
+ * Gate an app page behind auth. Once the session has resolved, an unauthenticated
+ * visitor is sent to /login. In local/demo mode (no API configured) it's a no-op
+ * so the built-in demo data can be explored without a backend.
+ */
+export function useRequireAuth() {
+  const session = useSession()
+  const router = useRouter()
+  useEffect(() => {
+    if (!API_ENABLED) return
+    if (!session.loading && !session.authed) router.replace('/login')
+  }, [session.loading, session.authed, router])
+  return session
+}
+
+/**
+ * Discover feed. Fetches live open matches + available court slots for the
+ * signed-in member. Shows a loading state until data arrives (never a flash of
+ * demo data that then vanishes). Falls back to demo content only in local mode.
  */
 export function useDiscoverData() {
-  const { authed } = useSession()
-  const live = authed && API_ENABLED
-  const [matches, setMatches] = useState<OpenMatch[]>(demoMatches)
-  const [courts, setCourts] = useState<CourtSlot[]>(demoCourts)
-  const [source, setSource] = useState<'demo' | 'live'>('demo')
+  const { authed, loading: sessionLoading } = useSession()
+  const [matches, setMatches] = useState<OpenMatch[]>([])
+  const [courts, setCourts] = useState<CourtSlot[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!live) return
+    if (!API_ENABLED) {
+      setMatches(demoMatches)
+      setCourts(demoCourts)
+      setLoading(false)
+      return
+    }
+    if (sessionLoading) return
+    if (!authed) {
+      setLoading(false)
+      return
+    }
     let cancelled = false
+    setLoading(true)
     Promise.all([api.listMatches('open'), api.availability(undefined, 3)])
       .then(([ms, slots]) => {
         if (cancelled) return
-        if (ms.length) setMatches(ms.map(matchToOpenMatch))
-        const open = slots.filter((s) => s.available).slice(0, 9)
-        if (open.length) setCourts(open.map(slotToCourtSlot))
-        setSource('live')
+        setMatches(ms.map(matchToOpenMatch))
+        setCourts(slots.filter((s) => s.available).slice(0, 9).map(slotToCourtSlot))
       })
       .catch(() => {
-        /* keep demo data on failure */
+        /* keep whatever we have; surfaced as an empty state, not a crash */
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
       })
     return () => {
       cancelled = true
     }
-  }, [live])
+  }, [authed, sessionLoading])
 
-  return { matches, courts, source }
+  return { matches, courts, loading: loading || (API_ENABLED && sessionLoading) }
 }
 
 export function useMyGames(when: 'upcoming' | 'past') {
-  const { authed } = useSession()
-  const live = authed && API_ENABLED
-  const [games, setGames] = useState<UpcomingGame[]>(when === 'upcoming' ? demoUpcoming : [])
-  const [loading, setLoading] = useState(false)
+  const { authed, loading: sessionLoading } = useSession()
+  const [games, setGames] = useState<UpcomingGame[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!live) {
+    if (!API_ENABLED) {
       setGames(when === 'upcoming' ? demoUpcoming : [])
+      setLoading(false)
+      return
+    }
+    if (sessionLoading) return
+    if (!authed) {
+      setLoading(false)
       return
     }
     let cancelled = false
@@ -78,7 +111,7 @@ export function useMyGames(when: 'upcoming' | 'past') {
     return () => {
       cancelled = true
     }
-  }, [live, when])
+  }, [authed, sessionLoading, when])
 
-  return { games, loading }
+  return { games, loading: loading || (API_ENABLED && sessionLoading) }
 }

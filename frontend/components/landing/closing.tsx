@@ -15,9 +15,10 @@ export function Closing() {
     <section className="mx-auto max-w-6xl px-5 pb-20">
       <div className="relative overflow-hidden rounded-3xl border border-border">
         <img
-          src="/images/players.png"
+          src="/images/players.jpg"
           alt="Two padel players sharing a relaxed high-five in golden light"
-          className="absolute inset-0 size-full object-cover"
+          loading="lazy"
+          className="absolute inset-0 size-full bg-muted object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-r from-foreground/85 via-foreground/70 to-foreground/40" />
 

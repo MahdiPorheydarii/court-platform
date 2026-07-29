@@ -5,8 +5,9 @@ import Link from 'next/link'
 import { Calendar, Clock, MapPin, Users, Crown, Check, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AvatarStack } from '@/components/avatar-stack'
+import { GameRowSkeleton } from '@/components/skeletons'
 import { type UpcomingGame } from '@/lib/club-data'
-import { useMyGames } from '@/lib/hooks'
+import { useMyGames, useRequireAuth } from '@/lib/hooks'
 import { cn } from '@/lib/utils'
 
 type Tab = 'upcoming' | 'past'
@@ -133,7 +134,8 @@ function EmptyState() {
 
 export function MyGames() {
   const [tab, setTab] = useState<Tab>('upcoming')
-  const { games } = useMyGames(tab)
+  useRequireAuth()
+  const { games, loading } = useMyGames(tab)
 
   return (
     <main className="mx-auto max-w-4xl px-5 py-8 sm:py-12">
@@ -168,7 +170,12 @@ export function MyGames() {
       </div>
 
       <div className="mt-6 flex flex-col gap-4">
-        {games.length === 0 ? (
+        {loading ? (
+          <>
+            <GameRowSkeleton />
+            <GameRowSkeleton />
+          </>
+        ) : games.length === 0 ? (
           <EmptyState />
         ) : (
           games.map((g) => <GameCard key={g.id} game={g} />)

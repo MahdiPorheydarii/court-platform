@@ -1,5 +1,6 @@
 import { Button as ButtonPrimitive } from '@base-ui/react/button'
 import { cva, type VariantProps } from 'class-variance-authority'
+import { cloneElement, isValidElement, type ReactElement } from 'react'
 
 import { cn } from '@/lib/utils'
 
@@ -44,14 +45,30 @@ function Button({
   className,
   variant = 'default',
   size = 'default',
+  asChild = false,
+  children,
   ...props
-}: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+}: ButtonPrimitive.Props &
+  VariantProps<typeof buttonVariants> & { asChild?: boolean }) {
+  const classes = cn(buttonVariants({ variant, size, className }))
+
+  // `@base-ui/react/button` has no `asChild`; rendering <Button asChild><Link/>
+  // via the primitive would nest <button><a> and break inline icon layout.
+  // Instead, make the child element *be* the button: a single element whose
+  // text + icon are direct flex children (so items-center keeps them inline).
+  if (asChild && isValidElement(children)) {
+    const child = children as ReactElement<{ className?: string }>
+    return cloneElement(child, {
+      ...props,
+      className: cn(classes, child.props.className),
+      'data-slot': 'button',
+    } as Record<string, unknown>)
+  }
+
   return (
-    <ButtonPrimitive
-      data-slot="button"
-      className={cn(buttonVariants({ variant, size, className }))}
-      {...props}
-    />
+    <ButtonPrimitive data-slot="button" className={classes} {...props}>
+      {children}
+    </ButtonPrimitive>
   )
 }
 

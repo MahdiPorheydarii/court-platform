@@ -17,7 +17,8 @@ export function CourtCard({ slot }: { slot: CourtSlot }) {
         <img
           src={slot.image || '/placeholder.svg'}
           alt={`${slot.club} ${slot.court}, ${slot.surface}`}
-          className="aspect-[16/10] w-full object-cover"
+          loading="lazy"
+          className="aspect-[16/10] w-full bg-muted object-cover"
         />
         <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-foreground/40 to-transparent" />
         <span className="absolute top-3 left-3 inline-flex items-center gap-1.5 rounded-full bg-card/90 px-2.5 py-0.5 text-xs font-medium capitalize backdrop-blur">

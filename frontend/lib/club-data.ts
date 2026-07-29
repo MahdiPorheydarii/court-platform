@@ -142,7 +142,7 @@ export const courtSlots: CourtSlot[] = [
     durationMins: 90,
     price: 48,
     bookedPct: 80,
-    image: '/images/court-padel.png',
+    image: '/images/court-padel.jpg',
     indoor: false,
   },
   {
@@ -156,7 +156,7 @@ export const courtSlots: CourtSlot[] = [
     durationMins: 60,
     price: 32,
     bookedPct: 45,
-    image: '/images/court-clay.png',
+    image: '/images/court-clay.jpg',
     indoor: false,
   },
   {
@@ -170,7 +170,7 @@ export const courtSlots: CourtSlot[] = [
     durationMins: 90,
     price: 52,
     bookedPct: 65,
-    image: '/images/hero-court.png',
+    image: '/images/hero-court.jpg',
     indoor: true,
   },
 ]

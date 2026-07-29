@@ -270,7 +270,7 @@ export function slotToCourtSlot(s: ApiSlot): CourtSlot {
     bookedPct: s.available ? 40 : 100,
     image:
       s.image_url ||
-      (s.sport === 'padel' ? '/images/court-padel.png' : '/images/court-clay.png'),
+      (s.sport === 'padel' ? '/images/court-padel.jpg' : '/images/court-clay.jpg'),
     indoor: s.indoor,
   }
 }

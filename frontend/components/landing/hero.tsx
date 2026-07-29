@@ -54,9 +54,13 @@ export function Hero() {
         <div className="relative">
           <div className="relative overflow-hidden rounded-3xl border border-border shadow-2xl shadow-primary/10">
             <img
-              src="/images/hero-court.png"
+              src="/images/hero-court.jpg"
               alt="A padel court in warm golden-hour light with players mid-rally"
-              className="aspect-[4/5] w-full object-cover"
+              width={1000}
+              height={1250}
+              loading="eager"
+              fetchPriority="high"
+              className="aspect-[4/5] w-full bg-muted object-cover"
             />
             <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-foreground/50 to-transparent" />
 

@@ -7,8 +7,8 @@ import { cn } from '@/lib/utils'
 import { MatchCard } from '@/components/match-card'
 import { CourtCard } from '@/components/court-card'
 import { HostMatchDialog } from '@/components/host-match-dialog'
-import { useDiscoverData } from '@/lib/hooks'
-import { useSession } from '@/lib/session'
+import { CardGridSkeleton } from '@/components/skeletons'
+import { useDiscoverData, useRequireAuth } from '@/lib/hooks'
 import { type Level, type Sport } from '@/lib/club-data'
 
 type Tab = 'matches' | 'courts'
@@ -76,8 +76,8 @@ export function DiscoverFeed() {
   const [showFilters, setShowFilters] = useState(false)
   const [level, setLevel] = useState<Level | 'any'>('any')
   const [hostOpen, setHostOpen] = useState(false)
-  const { member } = useSession()
-  const { matches: allMatches, courts: allCourts } = useDiscoverData()
+  const { member } = useRequireAuth()
+  const { matches: allMatches, courts: allCourts, loading } = useDiscoverData()
 
   const matches = useMemo(() => {
     return allMatches.filter((m) => {
@@ -215,7 +215,9 @@ export function DiscoverFeed() {
 
       {/* Feed */}
       <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {items.length === 0 ? (
+        {loading ? (
+          <CardGridSkeleton count={6} />
+        ) : items.length === 0 ? (
           <EmptyState onReset={resetFilters} />
         ) : isMatches ? (
           matches.map((m) => <MatchCard key={m.id} match={m} />)

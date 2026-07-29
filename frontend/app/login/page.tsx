@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowRight, Loader2, Sparkles } from 'lucide-react'
+import { ArrowRight, KeyRound, Loader2, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Logo } from '@/components/logo'
 import { api, ApiError } from '@/lib/api'
@@ -13,8 +13,8 @@ import { cn } from '@/lib/utils'
 
 type Mode = 'signin' | 'register'
 
-// The one-click demo login is only offered when a demo password is provided at
-// build time (NEXT_PUBLIC_DEMO_PASSWORD) — no credentials live in source.
+// Demo account for evaluators. Values come from build-time public env so no
+// credential lives in source; the card only appears when a demo password is set.
 const DEMO = {
   slug: process.env.NEXT_PUBLIC_DEMO_SLUG || 'riverside',
   email: process.env.NEXT_PUBLIC_DEMO_EMAIL || 'alex@riverside.club',
@@ -29,11 +29,9 @@ export default function LoginPage() {
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // shared fields
   const [slug, setSlug] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  // register-only
   const [clubName, setClubName] = useState('')
   const [adminName, setAdminName] = useState('')
 
@@ -79,6 +77,14 @@ export default function LoginPage() {
     else registerClub()
   }
 
+  function fillDemo() {
+    setMode('signin')
+    setSlug(DEMO.slug)
+    setEmail(DEMO.email)
+    setPassword(DEMO.password)
+    setError(null)
+  }
+
   return (
     <div className="grid min-h-svh lg:grid-cols-2">
       {/* Form side */}
@@ -97,9 +103,28 @@ export default function LoginPage() {
               : 'Set up courts, pricing, and matchmaking in minutes.'}
           </p>
 
-          {!API_ENABLED ? (
-            <div className="mt-5 rounded-2xl border border-border bg-secondary/50 p-4 text-sm text-muted-foreground">
-              This preview is running without a backend. Explore the demo — no login needed.
+          {/* Demo account — sign in normally with a sample login */}
+          {mode === 'signin' && DEMO_ENABLED ? (
+            <div className="mt-6 rounded-2xl border border-primary/25 bg-primary/[0.06] p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+                <Sparkles className="size-4" /> Try the demo account
+              </div>
+              <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+                <dt className="text-muted-foreground">Club</dt>
+                <dd className="font-medium tabular-nums">{DEMO.slug}</dd>
+                <dt className="text-muted-foreground">Email</dt>
+                <dd className="font-medium">{DEMO.email}</dd>
+                <dt className="text-muted-foreground">Password</dt>
+                <dd className="font-medium">{DEMO.password}</dd>
+              </dl>
+              <button
+                type="button"
+                onClick={fillDemo}
+                className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-1.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+              >
+                <KeyRound className="size-3.5" />
+                Fill demo credentials
+              </button>
             </div>
           ) : null}
 
@@ -159,27 +184,6 @@ export default function LoginPage() {
               {!pending ? <ArrowRight className="size-4" /> : null}
             </Button>
           </form>
-
-          {mode === 'signin' && API_ENABLED && DEMO_ENABLED ? (
-            <button
-              type="button"
-              onClick={() => signIn(DEMO)}
-              disabled={pending}
-              className="mt-4 inline-flex items-center justify-center gap-2 rounded-full border border-dashed border-primary/40 px-4 py-2.5 text-sm font-medium text-primary transition-colors hover:bg-primary/5"
-            >
-              <Sparkles className="size-4" />
-              Try the live demo club
-            </button>
-          ) : null}
-
-          {!API_ENABLED ? (
-            <Button asChild variant="outline" className="mt-4 h-11 rounded-full" data-icon="inline-end">
-              <Link href="/discover">
-                Explore the demo
-                <ArrowRight className="size-4" />
-              </Link>
-            </Button>
-          ) : null}
         </div>
 
         <p className="text-center text-xs text-muted-foreground">
@@ -192,12 +196,12 @@ export default function LoginPage() {
       {/* Visual side */}
       <div className="relative hidden overflow-hidden lg:block">
         <img
-          src="/images/players.png"
+          src="/images/players.jpg"
           alt="Two padel players sharing a high-five in golden light"
-          className="absolute inset-0 size-full object-cover"
+          loading="eager"
+          className="absolute inset-0 size-full bg-muted object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-foreground/85 via-foreground/45 to-foreground/20" />
-        {/* Court-line signature overlay */}
         <svg
           className="absolute inset-0 size-full text-background/25"
           viewBox="0 0 100 100"
@@ -211,7 +215,7 @@ export default function LoginPage() {
         </svg>
         <div className="absolute inset-x-0 bottom-0 p-10 text-background">
           <p className="max-w-md font-serif text-2xl font-semibold leading-snug text-balance">
-            "Never chase a fourth player again. Post a game, and AcePair fills it."
+            &ldquo;Never chase a fourth player again. Post a game, and AcePair fills it.&rdquo;
           </p>
           <p className="mt-3 text-sm text-background/70">Members at 12 partner clubs</p>
         </div>

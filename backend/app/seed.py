@@ -88,11 +88,11 @@ async def seed_demo() -> None:
         await session.flush()
 
         courts_spec = [
-            ("Court 1", "tennis", "Clay · Outdoor", False, "/images/court-clay.png"),
-            ("Court 2", "padel", "Glass · Outdoor", False, "/images/court-padel.png"),
-            ("Court 3", "padel", "Glass · Outdoor", False, "/images/court-padel.png"),
+            ("Court 1", "tennis", "Clay · Outdoor", False, "/images/court-clay.jpg"),
+            ("Court 2", "padel", "Glass · Outdoor", False, "/images/court-padel.jpg"),
+            ("Court 3", "padel", "Glass · Outdoor", False, "/images/court-padel.jpg"),
             ("Court 4", "tennis", "Hard · Outdoor", False, None),
-            ("Court 5", "padel", "Panoramic · Indoor", True, "/images/hero-court.png"),
+            ("Court 5", "padel", "Panoramic · Indoor", True, "/images/hero-court.jpg"),
         ]
         courts: dict = {}
         for name, sport, surface, indoor, image in courts_spec:

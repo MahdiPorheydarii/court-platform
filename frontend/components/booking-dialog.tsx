@@ -83,7 +83,8 @@ export function BookingDialog({
             <img
               src={slot.image || '/placeholder.svg'}
               alt={`${slot.club} ${slot.court}`}
-              className="h-40 w-full object-cover"
+              loading="lazy"
+              className="h-40 w-full bg-muted object-cover"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-card via-card/20 to-transparent" />
             <div className="absolute bottom-4 left-5">
