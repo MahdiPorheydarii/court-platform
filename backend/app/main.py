@@ -27,7 +27,9 @@ from .routers import (
     games,
     health,
     matches,
+    members,
     notifications,
+    reservations,
 )
 from .scheduler import sweeper
 
@@ -173,6 +175,8 @@ for module in (
     bookings,
     matches,
     games,
+    members,
+    reservations,
     notifications,
 ):
     app.include_router(module.router)

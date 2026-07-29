@@ -261,15 +261,53 @@ left their match, a match cancelled for not filling, booking confirmed, booking
 cancelled, and split invitations. The delivery channel is pluggable, so email
 or push can be swapped in later.
 
-## What's intentionally deferred
+## Assumptions & what's deferred
 
-- **Payments** aren't processed — AcePair calculates and records fee splits; a
-  processor can be added behind the existing ledger without a rewrite.
-- **Live discover/my-games** read from the API when signed in and fall back to demo
-  data otherwise; the join/book/host *actions* in the demo UI are optimistic
-  previews (the real, tested endpoints power them once the API URL is wired).
-- **Scale-out:** live notifications and the matchmaking sweeper run in-process
-  (perfect for one app container). Redis pub/sub + a dedicated worker are the
-  documented next step for running multiple copies.
-- **Time zones:** peak-hour pricing is evaluated on the booking's wall-clock; a
-  per-club timezone is stored in config and is the natural next refinement.
+AcePair is a working, deployable product, but it makes some deliberate scope
+choices. For a real production launch, the notable assumptions and gaps are:
+
+**Money & payments**
+- **No payment processing.** AcePair calculates and records fee splits in an
+  auditable integer-cents ledger, but no money moves — a processor (Stripe etc.)
+  plugs in behind the existing ledger. Cancellation policy is *computed* (charge
+  stands vs. waived), but there's no actual charge or refund yet.
+- **No revenue dashboard / settlement.** The ledger data exists; a club-facing
+  "who owes what / mark paid / payouts" view is not built.
+
+**Accounts & security**
+- **Password-only auth.** No email verification, password reset, social/SSO
+  login, or 2FA. No login rate-limiting, captcha, or abuse protection.
+- **No GDPR tooling** (data export/delete), audit log, or ToS/privacy flows.
+
+**Club operations (admin)**
+- The admin panel now covers courts, **opening hours & slot lengths**, a
+  **week schedule**, **recurring court holds**, **bookings management**, a
+  **member directory**, pricing, peak hours, and cancellation/unfilled rules.
+- Still deferred: **per-court / per-day hours** and one-off **maintenance
+  blackouts** (only club-wide hours + recurring holds today); **member invites,
+  approvals, role changes, and removal** (the directory is read-only); and
+  **self-serve club-profile editing** (name, location, tagline, cover, sports
+  are set via API/seed, not the panel).
+
+**Notifications**
+- **In-app only.** Notifications are stored and pushed live over WebSocket;
+  there is **no email / SMS / push** delivery, which a real club would expect.
+
+**Content, media & i18n**
+- **English / USD only** — no localization, currency formatting per region, or
+  RTL. A per-club `timezone` and `currency` are stored in config but not yet
+  surfaced or fully applied (peak pricing uses the booking's wall-clock).
+- **Images** are static assets in `/public` and set by URL; there's no upload
+  pipeline or object-storage/CDN, and photography is illustrative/demo.
+- The **landing copy and marketing content** are demo-grade, not final.
+
+**Discovery & platform**
+- **No club search / geolocation ("clubs near me") / maps.** The apex shows a
+  curated showcase, not a searchable directory.
+- **Frontend has no automated tests** (the backend does, with a real Postgres via
+  testcontainers). No end-to-end suite, metrics/tracing, or alerting wired in.
+
+**Scale-out**
+- Live notifications and the matchmaking sweeper run **in-process** (ideal for a
+  single app container). Redis pub/sub + a dedicated worker are the documented
+  next step for running multiple copies.

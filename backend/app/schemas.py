@@ -331,4 +331,48 @@ class NotificationList(BaseModel):
     unread: int
 
 
+# --------------------------------------------------------------------------- #
+#  Recurring reservations (admin court holds)                                   #
+# --------------------------------------------------------------------------- #
+class ReservationCreate(BaseModel):
+    court_id: uuid.UUID
+    title: str = Field(default="Court hold", min_length=1, max_length=120)
+    weekday: int = Field(ge=0, le=6, description="0=Mon … 6=Sun")
+    start_time: str = Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$", examples=["18:00"])
+    duration_mins: int = Field(ge=15, le=300, default=90)
+    weeks: int = Field(ge=1, le=26, default=12, description="How many weeks to materialise")
+
+
+class ReservationOut(BaseModel):
+    id: uuid.UUID
+    court_id: uuid.UUID
+    court_name: str
+    title: str
+    weekday: int
+    start_time: str  # "HH:MM"
+    duration_mins: int
+    active: bool
+    upcoming: int  # future hold bookings still on the calendar
+
+
+class ReservationCreateResult(BaseModel):
+    reservation: ReservationOut
+    created: int
+    skipped: int
+
+
+# --------------------------------------------------------------------------- #
+#  Member directory (admin)                                                     #
+# --------------------------------------------------------------------------- #
+class MemberDirectoryOut(BaseModel):
+    id: uuid.UUID
+    name: str
+    email: str
+    role: str
+    skill_level: str
+    initials: str
+    tone: str
+    created_at: datetime
+
+
 TokenResponse.model_rebuild()

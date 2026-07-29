@@ -4,27 +4,39 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import {
   Building2,
+  CalendarClock,
+  CalendarDays,
   Check,
   CircleDollarSign,
+  Clock,
+  ExternalLink,
   LayoutGrid,
   Loader2,
   Lock,
   Plus,
+  Repeat,
   Sparkles,
   Trash2,
   Users2,
   Zap,
 } from 'lucide-react'
-import { ExternalLink } from 'lucide-react'
 import { AppHeader } from '@/components/app-header'
 import { Button } from '@/components/ui/button'
-import { api, ApiError, type ApiCourt, type ApiMatch } from '@/lib/api'
+import {
+  api,
+  ApiError,
+  type ApiBooking,
+  type ApiCourt,
+  type ApiMatch,
+  type ApiMemberDir,
+  type ApiReservation,
+} from '@/lib/api'
 import { API_ENABLED } from '@/lib/config'
 import { clubSlugFromHost } from '@/lib/club-host'
 import { useRequireAuth } from '@/lib/hooks'
 import { cn } from '@/lib/utils'
 
-type Section = 'courts' | 'pricing'
+type Section = 'courts' | 'schedule' | 'bookings' | 'members' | 'pricing'
 
 export default function AdminPage() {
   const { authed, member, club, loading } = useRequireAuth()
@@ -100,10 +112,13 @@ export default function AdminPage() {
           <>
             <StatRow />
             {/* Section switcher */}
-            <div className="mt-8 flex gap-1 rounded-full border border-border bg-muted/50 p-1 text-sm font-medium sm:w-fit">
+            <div className="mt-8 flex gap-1 overflow-x-auto rounded-full border border-border bg-muted/50 p-1 text-sm font-medium">
               {(
                 [
                   ['courts', 'Courts', LayoutGrid],
+                  ['schedule', 'Schedule', CalendarDays],
+                  ['bookings', 'Bookings', CalendarClock],
+                  ['members', 'Members', Users2],
                   ['pricing', 'Pricing & rules', CircleDollarSign],
                 ] as [Section, string, typeof LayoutGrid][]
               ).map(([key, label, Icon]) => (
@@ -123,7 +138,17 @@ export default function AdminPage() {
             </div>
 
             <div className="mt-6">
-              {section === 'courts' ? <CourtsPanel /> : <RulesPanel />}
+              {section === 'courts' ? (
+                <CourtsPanel />
+              ) : section === 'schedule' ? (
+                <SchedulePanel />
+              ) : section === 'bookings' ? (
+                <BookingsPanel />
+              ) : section === 'members' ? (
+                <MembersPanel />
+              ) : (
+                <RulesPanel />
+              )}
             </div>
           </>
         )}
@@ -690,5 +715,448 @@ function Gate({
         </Button>
       ) : null}
     </div>
+  )
+}
+
+// --------------------------------------------------------------------------- //
+//  Shared helpers (admin panels render client-side, so local dates are safe)   //
+// --------------------------------------------------------------------------- //
+function fmtDay(iso: string) {
+  return new Date(iso).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+}
+function fmtTime(iso: string) {
+  return new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+}
+const SOURCE_META: Record<string, { label: string; cls: string }> = {
+  match: { label: 'Match', cls: 'bg-primary/12 text-primary' },
+  direct: { label: 'Booking', cls: 'bg-accent/15 text-accent' },
+  hold: { label: 'Hold', cls: 'bg-muted text-muted-foreground' },
+}
+function SourceBadge({ source }: { source: string }) {
+  const m = SOURCE_META[source] ?? SOURCE_META.direct
+  return <span className={cn('rounded-full px-2 py-0.5 text-xs font-medium', m.cls)}>{m.label}</span>
+}
+
+// --------------------------------------------------------------------------- //
+//  Schedule — operating hours, slot lengths, week view, recurring holds        //
+// --------------------------------------------------------------------------- //
+function SchedulePanel() {
+  const [config, setConfig] = useState<Record<string, any> | null>(null)
+  const [savingHours, setSavingHours] = useState(false)
+  const [hoursSaved, setHoursSaved] = useState(false)
+
+  useEffect(() => {
+    api.getConfig().then(setConfig).catch(() => setConfig({}))
+  }, [])
+
+  function setCfg(path: string[], value: unknown) {
+    setConfig((prev) => {
+      const next = structuredClone(prev ?? {})
+      let node: any = next
+      for (let i = 0; i < path.length - 1; i++) {
+        node[path[i]] = node[path[i]] ?? {}
+        node = node[path[i]]
+      }
+      node[path[path.length - 1]] = value
+      return next
+    })
+    setHoursSaved(false)
+  }
+
+  async function saveHours() {
+    if (!config) return
+    setSavingHours(true)
+    try {
+      await api.updateConfig({ operating_hours: config.operating_hours, slot_minutes: config.slot_minutes })
+      setHoursSaved(true)
+    } catch {
+      /* ignore */
+    } finally {
+      setSavingHours(false)
+    }
+  }
+
+  if (!config) return <div className="h-64 animate-pulse rounded-2xl border border-border bg-muted/40" />
+
+  const oh = config.operating_hours ?? { start: '08:00', end: '22:00' }
+  const slots = config.slot_minutes ?? { padel: 90, tennis: 60 }
+
+  return (
+    <div className="flex flex-col gap-6">
+      {/* Operating hours + slot lengths (A1 / A3) */}
+      <section className="rounded-2xl border border-border bg-card p-5">
+        <div className="flex items-center gap-2 text-sm font-semibold">
+          <Clock className="size-4 text-primary" /> Opening hours &amp; slot lengths
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground">
+          When courts are bookable, and the default game length per sport. Availability follows these.
+        </p>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium">Opens</span>
+            <input
+              type="time"
+              value={oh.start ?? '08:00'}
+              onChange={(e) => setCfg(['operating_hours', 'start'], e.target.value)}
+              className="h-10 rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-primary"
+            />
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium">Closes</span>
+            <input
+              type="time"
+              value={oh.end ?? '22:00'}
+              onChange={(e) => setCfg(['operating_hours', 'end'], e.target.value)}
+              className="h-10 rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-primary"
+            />
+          </label>
+          <NumberField label="Padel slot (min)" step={15} value={slots.padel ?? 90} onChange={(v) => setCfg(['slot_minutes', 'padel'], v)} />
+          <NumberField label="Tennis slot (min)" step={15} value={slots.tennis ?? 60} onChange={(v) => setCfg(['slot_minutes', 'tennis'], v)} />
+        </div>
+        <div className="mt-4 flex items-center gap-3">
+          <Button onClick={saveHours} disabled={savingHours} className="h-10 rounded-full px-6" data-icon="inline-start">
+            {savingHours ? <Loader2 className="size-4 animate-spin" /> : hoursSaved ? <Check className="size-4" /> : null}
+            {hoursSaved ? 'Saved' : 'Save hours'}
+          </Button>
+          {hoursSaved ? <span className="text-sm text-accent">Bookable hours updated.</span> : null}
+        </div>
+      </section>
+
+      <WeekSchedule />
+      <RecurringReservations />
+    </div>
+  )
+}
+
+function WeekSchedule() {
+  const [bookings, setBookings] = useState<ApiBooking[] | null>(null)
+  useEffect(() => {
+    api.listBookings('club').then(setBookings).catch(() => setBookings([]))
+  }, [])
+
+  const days = useMemo(() => {
+    if (!bookings) return null
+    const now = Date.now()
+    const end = now + 7 * 86400000
+    const within = bookings
+      .filter((b) => b.status !== 'cancelled' && new Date(b.end_time).getTime() > now && new Date(b.start_time).getTime() < end)
+      .sort((a, b) => a.start_time.localeCompare(b.start_time))
+    const groups: { key: string; label: string; items: ApiBooking[] }[] = []
+    for (const b of within) {
+      const key = new Date(b.start_time).toDateString()
+      let g = groups.find((x) => x.key === key)
+      if (!g) {
+        g = { key, label: fmtDay(b.start_time), items: [] }
+        groups.push(g)
+      }
+      g.items.push(b)
+    }
+    return groups
+  }, [bookings])
+
+  return (
+    <section className="rounded-2xl border border-border bg-card p-5">
+      <div className="flex items-center gap-2 text-sm font-semibold">
+        <CalendarDays className="size-4 text-primary" /> This week&apos;s schedule
+      </div>
+      <p className="mt-1 text-xs text-muted-foreground">Every court reservation across the next 7 days.</p>
+      {days === null ? (
+        <div className="mt-4 h-32 animate-pulse rounded-xl bg-muted/40" />
+      ) : days.length === 0 ? (
+        <p className="mt-4 text-sm text-muted-foreground">Nothing booked in the next 7 days.</p>
+      ) : (
+        <div className="mt-4 flex flex-col gap-5">
+          {days.map((d) => (
+            <div key={d.key}>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{d.label}</p>
+              <div className="mt-2 flex flex-col gap-1.5">
+                {d.items.map((b) => (
+                  <div key={b.id} className="flex items-center gap-3 rounded-xl border border-border bg-background px-3 py-2 text-sm">
+                    <span className="w-28 shrink-0 tabular-nums text-muted-foreground">
+                      {fmtTime(b.start_time)}–{fmtTime(b.end_time)}
+                    </span>
+                    <span className="w-24 shrink-0 font-medium">{b.court_name}</span>
+                    <span className="flex-1 truncate">{b.title}</span>
+                    <SourceBadge source={b.source} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function RecurringReservations() {
+  const [items, setItems] = useState<ApiReservation[] | null>(null)
+  const [courts, setCourts] = useState<ApiCourt[]>([])
+  const [adding, setAdding] = useState(false)
+  const [courtId, setCourtId] = useState('')
+  const [weekday, setWeekday] = useState(1)
+  const [time, setTime] = useState('18:00')
+  const [duration, setDuration] = useState(90)
+  const [weeks, setWeeks] = useState(12)
+  const [title, setTitle] = useState('Coaching')
+  const [saving, setSaving] = useState(false)
+  const [note, setNote] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    setItems(await api.listReservations().catch(() => []))
+  }, [])
+  useEffect(() => {
+    load()
+    api.listCourts(false).then((cs) => {
+      setCourts(cs)
+      if (cs[0]) setCourtId(cs[0].id)
+    }).catch(() => {})
+  }, [load])
+
+  async function create(e: React.FormEvent) {
+    e.preventDefault()
+    if (!courtId) return
+    setSaving(true)
+    setNote(null)
+    try {
+      const r = await api.createReservation({ court_id: courtId, title, weekday, start_time: time, duration_mins: duration, weeks })
+      setNote(`Added ${r.created} holds${r.skipped ? `, skipped ${r.skipped} (already booked)` : ''}.`)
+      setAdding(false)
+      await load()
+    } catch (err) {
+      setNote(err instanceof ApiError ? err.message : 'Could not create the reservation.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function remove(id: string) {
+    await api.deleteReservation(id).catch(() => {})
+    await load()
+  }
+
+  return (
+    <section className="rounded-2xl border border-border bg-card p-5">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-sm font-semibold">
+          <Repeat className="size-4 text-primary" /> Recurring reservations
+        </div>
+        {!adding ? (
+          <button
+            type="button"
+            onClick={() => setAdding(true)}
+            className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <Plus className="size-3.5" /> New hold
+          </button>
+        ) : null}
+      </div>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Weekly court holds (coaching, leagues, maintenance) — materialised as bookings for the next {weeks} weeks.
+      </p>
+
+      {adding ? (
+        <form onSubmit={create} className="mt-4 grid gap-3 rounded-xl border border-border bg-background p-4 sm:grid-cols-2 lg:grid-cols-3">
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium">Court</span>
+            <select value={courtId} onChange={(e) => setCourtId(e.target.value)} className="h-10 rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-primary">
+              {courts.map((c) => (
+                <option key={c.id} value={c.id}>{c.name} · {c.sport}</option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium">Day</span>
+            <select value={weekday} onChange={(e) => setWeekday(Number(e.target.value))} className="h-10 rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-primary">
+              {DAYS.map((d, i) => (
+                <option key={d} value={i}>{d}</option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium">Start</span>
+            <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="h-10 rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-primary" />
+          </label>
+          <NumberField label="Duration (min)" step={15} value={duration} onChange={setDuration} />
+          <NumberField label="Weeks" value={weeks} onChange={setWeeks} />
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium">Label</span>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Coaching" className="h-10 rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-primary" />
+          </label>
+          <div className="flex items-center gap-2 sm:col-span-2 lg:col-span-3">
+            <Button type="submit" disabled={saving} className="h-10 rounded-full px-5" data-icon="inline-start">
+              {saving ? <Loader2 className="size-4 animate-spin" /> : null} Create hold
+            </Button>
+            <Button type="button" variant="ghost" onClick={() => setAdding(false)} className="h-10 rounded-full px-4">Cancel</Button>
+          </div>
+        </form>
+      ) : null}
+
+      {note ? <p className="mt-3 text-sm text-accent">{note}</p> : null}
+
+      <div className="mt-4 flex flex-col gap-2">
+        {items === null ? (
+          <div className="h-16 animate-pulse rounded-xl bg-muted/40" />
+        ) : items.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No recurring holds yet.</p>
+        ) : (
+          items.map((r) => (
+            <div key={r.id} className="flex items-center gap-3 rounded-xl border border-border bg-background px-3 py-2 text-sm">
+              <span className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary"><Repeat className="size-4" /></span>
+              <div className="flex-1">
+                <p className="font-medium">{r.title}</p>
+                <p className="text-xs text-muted-foreground">
+                  {r.court_name} · {DAYS[r.weekday]} {r.start_time} · {r.duration_mins} min · {r.upcoming} upcoming
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => remove(r.id)}
+                aria-label="Cancel series"
+                className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+              >
+                <Trash2 className="size-4" />
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+    </section>
+  )
+}
+
+// --------------------------------------------------------------------------- //
+//  Bookings — all club bookings, cancellable (B1)                              //
+// --------------------------------------------------------------------------- //
+function BookingsPanel() {
+  const [bookings, setBookings] = useState<ApiBooking[] | null>(null)
+  const [when, setWhen] = useState<'upcoming' | 'past'>('upcoming')
+  const [busy, setBusy] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    setBookings(await api.listBookings('club').catch(() => []))
+  }, [])
+  useEffect(() => {
+    load()
+  }, [load])
+
+  const rows = useMemo(() => {
+    if (!bookings) return null
+    const now = Date.now()
+    return bookings
+      .filter((b) => (when === 'upcoming' ? new Date(b.end_time).getTime() >= now : new Date(b.end_time).getTime() < now))
+      .sort((a, b) => (when === 'upcoming' ? a.start_time.localeCompare(b.start_time) : b.start_time.localeCompare(a.start_time)))
+  }, [bookings, when])
+
+  async function cancel(id: string) {
+    setBusy(id)
+    await api.cancelBooking(id).catch(() => {})
+    await load()
+    setBusy(null)
+  }
+
+  return (
+    <section>
+      <div className="flex w-fit rounded-full border border-border bg-muted/50 p-1 text-sm font-medium">
+        {(['upcoming', 'past'] as const).map((w) => (
+          <button
+            key={w}
+            type="button"
+            onClick={() => setWhen(w)}
+            className={cn('rounded-full px-4 py-1.5 capitalize transition-colors', when === w ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')}
+          >
+            {w}
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-5 overflow-hidden rounded-2xl border border-border">
+        {rows === null ? (
+          <div className="h-40 animate-pulse bg-muted/40" />
+        ) : rows.length === 0 ? (
+          <p className="px-4 py-10 text-center text-sm text-muted-foreground">No {when} bookings.</p>
+        ) : (
+          <div className="divide-y divide-border">
+            {rows.map((b) => {
+              const cancelled = b.status === 'cancelled'
+              return (
+                <div key={b.id} className={cn('flex flex-wrap items-center gap-3 bg-card px-4 py-3 text-sm', cancelled && 'opacity-55')}>
+                  <div className="w-40 shrink-0">
+                    <p className="font-medium">{fmtDay(b.start_time)}</p>
+                    <p className="text-xs tabular-nums text-muted-foreground">{fmtTime(b.start_time)}–{fmtTime(b.end_time)}</p>
+                  </div>
+                  <span className="w-24 shrink-0 font-medium">{b.court_name}</span>
+                  <span className="flex-1 truncate">{b.title}</span>
+                  <SourceBadge source={b.source} />
+                  <span className="w-16 shrink-0 text-right tabular-nums text-muted-foreground">
+                    {b.total_fee > 0 ? `$${b.total_fee.toFixed(0)}` : '—'}
+                  </span>
+                  {when === 'upcoming' && !cancelled ? (
+                    <button
+                      type="button"
+                      onClick={() => cancel(b.id)}
+                      disabled={busy === b.id}
+                      className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-destructive/40 hover:text-destructive disabled:opacity-50"
+                    >
+                      {busy === b.id ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />} Cancel
+                    </button>
+                  ) : cancelled ? (
+                    <span className="text-xs text-muted-foreground">Cancelled</span>
+                  ) : null}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
+
+// --------------------------------------------------------------------------- //
+//  Members — club directory (C1)                                              //
+// --------------------------------------------------------------------------- //
+function MembersPanel() {
+  const [members, setMembers] = useState<ApiMemberDir[] | null>(null)
+  useEffect(() => {
+    api.listMembers().then(setMembers).catch(() => setMembers([]))
+  }, [])
+
+  const admins = (members ?? []).filter((m) => m.role === 'admin').length
+
+  return (
+    <section>
+      {members === null ? (
+        <div className="h-64 animate-pulse rounded-2xl border border-border bg-muted/40" />
+      ) : (
+        <>
+          <div className="mb-4 flex gap-3 text-sm text-muted-foreground">
+            <span><span className="font-semibold text-foreground">{members.length}</span> members</span>
+            <span>·</span>
+            <span><span className="font-semibold text-foreground">{admins}</span> admin{admins === 1 ? '' : 's'}</span>
+          </div>
+          <div className="overflow-hidden rounded-2xl border border-border">
+            <div className="divide-y divide-border">
+              {members.map((m) => (
+                <div key={m.id} className="flex items-center gap-3 bg-card px-4 py-3">
+                  <span className={cn('flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold', m.tone)}>{m.initials}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium">{m.name}</p>
+                    <p className="truncate text-xs text-muted-foreground">{m.email}</p>
+                  </div>
+                  <span className="hidden w-24 shrink-0 text-xs text-muted-foreground sm:block">{m.skill_level}</span>
+                  {m.role === 'admin' ? (
+                    <span className="rounded-full bg-primary/12 px-2 py-0.5 text-xs font-medium text-primary">Admin</span>
+                  ) : (
+                    <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-muted-foreground">Member</span>
+                  )}
+                  <span className="hidden w-24 shrink-0 text-right text-xs text-muted-foreground md:block">Joined {fmtDay(m.created_at)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </section>
   )
 }

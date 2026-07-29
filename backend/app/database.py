@@ -58,6 +58,7 @@ async def get_session() -> AsyncSession:  # pragma: no cover - trivial dependenc
 # (create_all only creates missing *tables*, never new columns).
 _LIGHT_MIGRATIONS = (
     "ALTER TABLE courts ADD COLUMN IF NOT EXISTS hourly_rate_cents INTEGER",
+    "ALTER TABLE bookings ADD COLUMN IF NOT EXISTS recurring_id UUID",
 )
 
 

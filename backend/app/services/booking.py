@@ -100,7 +100,9 @@ async def create_booking(
     invitee_ids: Optional[Sequence[uuid.UUID]] = None,
     source: str = BookingSource.DIRECT,
     match_id: Optional[uuid.UUID] = None,
+    recurring_id: Optional[uuid.UUID] = None,
     absorb_unclaimed: bool = False,
+    free: bool = False,
 ) -> Booking:
     court = await _get_court(session, club.id, court_id)
     cfg = ClubConfig(club.config)
@@ -112,7 +114,8 @@ async def create_booking(
     peak = fee_logic.is_peak(start_time, cfg.peak_windows)
     sport_fee = cfg.fee_for(court.sport)
     base_rate = court.hourly_rate_cents or sport_fee.base_rate_per_hour_cents
-    total_cents = fee_logic.compute_total_fee_cents(
+    # A hold (maintenance/coaching block) reserves the court but is not billed.
+    total_cents = 0 if free else fee_logic.compute_total_fee_cents(
         base_rate, duration_mins, sport_fee.peak_multiplier, peak
     )
 
@@ -124,6 +127,7 @@ async def create_booking(
         court_id=court.id,
         host_member_id=host.id,
         match_id=match_id,
+        recurring_id=recurring_id,
         title=title or f"{court.name} booking",
         start_time=start_time,
         end_time=end_time,
@@ -150,7 +154,7 @@ async def create_booking(
             )
         raise
 
-    ledger_rows = _build_ledger_rows(
+    ledger_rows = [] if free else _build_ledger_rows(
         total_cents, split_count, host.id, list(invitee_ids or []), absorb_unclaimed
     )
     for member_id, amount in ledger_rows:

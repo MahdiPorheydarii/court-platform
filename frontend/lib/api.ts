@@ -148,6 +148,43 @@ export interface ApiGame {
   booking_id?: string | null
   match_id?: string | null
 }
+export interface ApiBooking {
+  id: string
+  court_id: string
+  court_name: string
+  sport: Sport
+  title: string
+  start_time: string
+  end_time: string
+  duration_mins: number
+  status: string
+  source: string
+  is_peak: boolean
+  total_fee: number
+  per_person: number
+  match_id: string | null
+}
+export interface ApiMemberDir {
+  id: string
+  name: string
+  email: string
+  role: string
+  skill_level: string
+  initials: string
+  tone: string
+  created_at: string
+}
+export interface ApiReservation {
+  id: string
+  court_id: string
+  court_name: string
+  title: string
+  weekday: number
+  start_time: string
+  duration_mins: number
+  active: boolean
+  upcoming: number
+}
 export interface TokenResponse {
   access_token: string
   token_type: string
@@ -274,6 +311,27 @@ export const api = {
   getConfig: () => request<Record<string, any>>('/v1/club/config'),
   updateConfig: (config: Record<string, unknown>) =>
     request<ApiClub>('/v1/club/config', { method: 'PATCH', body: { config } }),
+
+  // --- Admin: bookings, members, recurring reservations ---
+  listBookings: (scope: 'mine' | 'club' = 'club') =>
+    request<ApiBooking[]>(`/v1/bookings?scope=${scope}`),
+  cancelBooking: (id: string) => request<unknown>(`/v1/bookings/${id}`, { method: 'DELETE' }),
+  listMembers: () => request<ApiMemberDir[]>('/v1/members'),
+  listReservations: () => request<ApiReservation[]>('/v1/reservations'),
+  createReservation: (payload: {
+    court_id: string
+    title: string
+    weekday: number
+    start_time: string
+    duration_mins: number
+    weeks: number
+  }) =>
+    request<{ reservation: ApiReservation; created: number; skipped: number }>('/v1/reservations', {
+      method: 'POST',
+      body: payload,
+    }),
+  deleteReservation: (id: string) =>
+    request<{ cancelled_bookings: number }>(`/v1/reservations/${id}`, { method: 'DELETE' }),
 }
 
 // --- Mappers: API shapes -> the frontend's demo-data shapes ---

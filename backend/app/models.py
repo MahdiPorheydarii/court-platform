@@ -61,6 +61,7 @@ class BookingStatus:
 class BookingSource:
     DIRECT = "direct"
     MATCH = "match"
+    HOLD = "hold"  # an admin court hold (maintenance, coaching, recurring block)
 
 
 class MatchStatus:
@@ -168,6 +169,11 @@ class Booking(Base):
     match_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         ForeignKey("matches.id", ondelete="SET NULL"), nullable=True
     )
+    # Set when this booking was materialised from a recurring reservation, so the
+    # whole series can be cancelled together.
+    recurring_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        ForeignKey("recurring_reservations.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     title: Mapped[str] = mapped_column(String(120), default="Court booking")
     start_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     end_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -182,6 +188,27 @@ class Booking(Base):
     cancelled_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+
+
+class RecurringReservation(Base):
+    """A weekly court hold (e.g. coaching every Tue 18:00). Materialises into a
+    horizon of ``hold`` bookings; deleting it cancels its future bookings."""
+
+    __tablename__ = "recurring_reservations"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUIDpk, primary_key=True, default=_uuid)
+    club_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("clubs.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    court_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("courts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    title: Mapped[str] = mapped_column(String(120), default="Court hold")
+    weekday: Mapped[int] = mapped_column(Integer, nullable=False)  # 0=Mon … 6=Sun
+    start_minute: Mapped[int] = mapped_column(Integer, nullable=False)  # minutes from midnight (UTC)
+    duration_mins: Mapped[int] = mapped_column(Integer, nullable=False)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
 class Match(Base):
